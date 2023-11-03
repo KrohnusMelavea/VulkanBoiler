@@ -18,8 +18,8 @@ namespace API_NAME {
 	public:
 		AssetManagementSystem();
 
-		Mesh& insertMesh(std::filesystem::path const& file_path, Mesh::id_type const& id);
-		Image& insertImage(std::filesystem::path const& file_path, Image::id_type const& id);
+		Mesh& insertMesh(Mesh::id_type const& id, std::filesystem::path const& file_path);
+		Image& insertImage(Image::id_type const& id, std::filesystem::path const& file_path);
 		LayeredTexture& insertLayeredTexture(LayeredTexture::id_type const& id);
 
 		Mesh& fetchMesh(Mesh::id_type const& id) noexcept;

@@ -1,7 +1,7 @@
 #include "Image.hpp"
 
 #pragma warning(push, 0)
-#include <stb_image/stb_image.h>
+#include <stb/stb_image.h>
 #include <spdlog/spdlog.h>
 #pragma warning(pop)
 
@@ -9,7 +9,7 @@ namespace API_NAME {
 	Image::Image() : m_IsLoaded{ false }, m_ID{}, m_FilePath{}, m_Width{ NULL }, m_Height{ NULL }, m_Pixels{ nullptr, std::free } {
 
 	}
-	Image::Image(std::filesystem::path const& file_path, Image::id_type const& id, bool load_image) : m_IsLoaded{ false }, m_ID { id }, m_FilePath{ file_path }, m_Width{ NULL }, m_Height{ NULL }, m_Pixels{ nullptr, std::free } {
+	Image::Image(Image::id_type const& id, std::filesystem::path const& file_path, bool load_image) : m_IsLoaded{ false }, m_ID { id }, m_FilePath{ file_path }, m_Width{ NULL }, m_Height{ NULL }, m_Pixels{ nullptr, std::free } {
 		if (load_image) {
 			load();
 		}

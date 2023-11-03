@@ -39,7 +39,7 @@ namespace API_NAME {
 		WindowProperties m_Properties;
 		HWND m_WindowHandle;
 
-		static constexpr u32 DEFAULT_WIDTH = 800, DEFAULT_HEIGHT = 600;
+		static constexpr u32 DEFAULT_WIDTH = 1920, DEFAULT_HEIGHT = 1000;
 		static constexpr std::string_view DEFAULT_TITLE = "Default Window";
 	};
 }

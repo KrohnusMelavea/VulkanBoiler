@@ -2,6 +2,7 @@
 #include "Application.hpp"
 
 #pragma warning(push, 0)
+#include <spdlog/spdlog.h>
 #include <algorithm>
 #pragma warning(pop)
 
@@ -79,6 +80,14 @@ namespace API_NAME {
 			
 		case WM_MOUSEMOVE:
 			return 0;
+		case WM_SIZE:
+			switch (uparam) {
+			case SIZE_MINIMIZED:
+			case SIZE_MAXIMIZED:
+				m_Renderer.resized = true;
+				break;
+			}
+			break;
 		case WM_SIZING:
 			m_Renderer.resized = true;
 			break;

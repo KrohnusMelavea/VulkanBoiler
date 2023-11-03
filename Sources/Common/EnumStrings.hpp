@@ -12,7 +12,7 @@ enum class Win32KeyCode {
     m_button = 0x04, 
     x_button_1 = 0x05, 
     x_button_2 = 0x06,
-    back = 0X08,
+    back = 0x08,
     tab = 0x09,
     clear = 0x0C,
     ret = 0x0d,

@@ -17,7 +17,7 @@ namespace API_NAME {
 		std::string_view static constexpr NULL_ID = "";
 
 		Image();
-		Image(std::filesystem::path const& file_path, id_type const& name, bool load_image = true);
+		Image(id_type const& id, std::filesystem::path const& file_path, bool load_image = true);
 		
 		Image(Image const& image);
 		

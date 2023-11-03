@@ -10,9 +10,9 @@ namespace API_NAME {
 
 	}
 
-	Mesh& AssetManagementSystem::insertMesh(std::filesystem::path const& file_path, Mesh::id_type const& id) {
+	Mesh& AssetManagementSystem::insertMesh(Mesh::id_type const& id, std::filesystem::path const& file_path) {
 		bool will_resize = std::size(m_Meshes) == m_Meshes.capacity();
-		auto&& new_mesh = m_Meshes.emplace_back(file_path, id);
+		auto&& new_mesh = m_Meshes.emplace_back(id, file_path);
 		if (will_resize) {
 			for (auto&& mesh : std::span{ std::data(m_Meshes), std::size(m_Meshes) - 1 }) {
 				m_MeshMap.at(mesh.id()) = &mesh;
@@ -21,9 +21,9 @@ namespace API_NAME {
 		(void)m_MeshMap.emplace(id, &new_mesh);
 		return m_Meshes.back();
 	}
-	Image& AssetManagementSystem::insertImage(std::filesystem::path const& file_path, Image::id_type const& id) {
+	Image& AssetManagementSystem::insertImage(Image::id_type const& id, std::filesystem::path const& file_path) {
 		bool will_resize = std::size(m_Images) == m_Images.capacity();
-		auto&& new_image = m_Images.emplace_back(file_path, id);
+		auto&& new_image = m_Images.emplace_back(id, file_path);
 		if (will_resize) {
 			for (auto&& image : std::span{ std::data(m_Images), std::size(m_Images) - 1 }) {
 				m_ImageMap.at(image.id()) = &image;

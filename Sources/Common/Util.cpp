@@ -131,7 +131,7 @@ namespace API_NAME {
 
 		return { result, image, image_memory };
 	}
-	std::tuple<VkResult, VkImageView> createImageView(VkDevice const logical_device, VkImage const image, VkFormat const format, VkImageAspectFlags const aspect, VkImageViewType const type,  u32 const layers) {
+	std::tuple<VkResult, VkImageView> createImageView(VkDevice const logical_device, VkImage const image, VkFormat const format, VkImageAspectFlags const aspect, VkImageViewType const type, u32 const layers) {
 		VkResult result;
 		VkImageView image_view;
 

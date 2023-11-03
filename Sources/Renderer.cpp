@@ -1,3 +1,5 @@
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+
 #include "Common/Util.hpp"
 #include "Common/EnumStrings.hpp"
 #include "Image.hpp"
@@ -72,6 +74,7 @@ namespace API_NAME {
 			switch (result) {
 			case VK_ERROR_OUT_OF_DATE_KHR:
 				if (resized) {
+					SPDLOG_INFO("resized");
 					RecreateSwapchain();
 					resized = false;
 				}
@@ -105,10 +108,9 @@ namespace API_NAME {
 #endif
 			RecordCommandBuffer(m_CommandBuffers[m_CurrentFrameIndex], image_index);
 
-			std::array<VkSemaphore, 1> const wait_semaphores{ { m_ImageAvailableSemaphores[m_CurrentFrameIndex] } };
-			std::array<VkSemaphore, 1> const signal_semaphores{ { m_RenderFinishedSemaphores[m_CurrentFrameIndex] }
-			};
-			std::array<VkPipelineStageFlags, 1> static constexpr wait_stages{ { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT } };
+			std::array<VkSemaphore, 1> const wait_semaphores{ m_ImageAvailableSemaphores[m_CurrentFrameIndex] };
+			std::array<VkSemaphore, 1> const signal_semaphores{ m_RenderFinishedSemaphores[m_CurrentFrameIndex] };
+			std::array<VkPipelineStageFlags, 1> static constexpr wait_stages{ VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 			VkSubmitInfo const submit_info{
 				.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 				.pNext = nullptr,
@@ -143,9 +145,9 @@ namespace API_NAME {
 #pragma warning(disable: 4061)
 			switch (result) {
 			case VK_ERROR_OUT_OF_DATE_KHR:
-				break;
 			case VK_SUBOPTIMAL_KHR:
 				if (resized) {
+					SPDLOG_INFO("resized");
 					RecreateSwapchain();
 					resized = false;
 				}
@@ -204,15 +206,15 @@ namespace API_NAME {
 	}
 #endif
 
-	Renderer::Renderer(HWND window_handle) : resized{ false }, m_Paused{ false }, m_Camera(glm::vec3(0.0f, 5.0f, 5.0f), glm::vec3(0.0f, 0.0f, 1.0f)), m_FrameCounter{ 0 }, m_CurrentFrameIndex { 0 } {
+	Renderer::Renderer(HWND window_handle) : resized{ false }, m_Paused{ false }, m_Camera(glm::vec3(0.0f, 5.0f, 5.0f), glm::vec3(0.0f, 0.0f, 1.0f)), m_FrameCounter{ 0 }, m_CurrentFrameIndex{ 0 }, m_Swapchain{ VK_NULL_HANDLE } {
 #ifdef _DEBUG
 		spdlog::set_level(spdlog::level::debug);
 #endif
 		VkResult result;
 
 		/* Asset Loading */ {
-			AMS.insertMesh(std::filesystem::path{ "C:/SE/Personal/VulkanBoiler/VulkanBoiler/Resources/Meshes/VikingRoom.obj" }, "Viking Room");
-			auto& image0 = AMS.insertImage(std::filesystem::path{ "C:/SE/Personal/VulkanBoiler/VulkanBoiler/Resources/Textures/World/VikingRoom.png" }, "Viking Room 0");
+			AMS.insertMesh("Viking Room", std::filesystem::path{ "C:/SE/Personal/VulkanBoiler/Resources/Meshes/VikingRoom.obj" });
+			auto& image0 = AMS.insertImage("Viking Room 0", std::filesystem::path{ "C:/SE/Personal/VulkanBoiler/Resources/Textures/VikingRoom.png" });
 			//auto pixels = image0.pixels();
 			//for (u32 i = 0; i < image0.size() / 4; ++i) {
 			//	Pixel pixel;
@@ -222,7 +224,7 @@ namespace API_NAME {
 			//	pixel.b = 255 - pixel.b;
 			//	(void)std::memcpy(&pixels[i * 4], &pixel, 4);
 			//}
-			auto& image1 = AMS.insertImage(std::filesystem::path{ "C:/SE/Personal/VulkanBoiler/VulkanBoiler/Resources/Textures/World/VikingRoom.png" }, "Viking Room 1");
+			auto& image1 = AMS.insertImage("Viking Room 1", std::filesystem::path{ "C:/SE/Personal/VulkanBoiler/Resources/Textures/VikingRoom.png" });
 			auto& layered_texture = AMS.insertLayeredTexture("Viking Room");
 			layered_texture.addImage("Viking Room 0", 0);
 			layered_texture.addImage("Viking Room 1", 1);
@@ -402,7 +404,7 @@ namespace API_NAME {
 			}
 #endif
 			std::vector<VkSurfaceFormatKHR> surface_formats(surface_format_count);
-			result = vkGetPhysicalDeviceSurfaceFormatsKHR(m_PhysicalDevice, m_Surface, &surface_format_count, surface_formats.data());
+			result = vkGetPhysicalDeviceSurfaceFormatsKHR(m_PhysicalDevice, m_Surface, &surface_format_count, std::data(surface_formats));
 #ifdef _DEBUG
 			if (result != VK_SUCCESS) {
 				SPDLOG_ERROR("vkGetPhysicalDeviceSurfaceFormatsKHR failed fetch: {}", getEnumString(result));
@@ -417,7 +419,7 @@ namespace API_NAME {
 			}
 #endif
 			std::vector<VkPresentModeKHR> surface_present_modes(surface_present_mode_count);
-			result = vkGetPhysicalDeviceSurfacePresentModesKHR(m_PhysicalDevice, m_Surface, &surface_present_mode_count, surface_present_modes.data());
+			result = vkGetPhysicalDeviceSurfacePresentModesKHR(m_PhysicalDevice, m_Surface, &surface_present_mode_count, std::data(surface_present_modes));
 #ifdef _DEBUG
 			if (result != VK_SUCCESS) {
 				SPDLOG_ERROR("vkGetPhysicalDeviceSurfacePresentModesKHR failed fetch: {}", getEnumString(result));
@@ -432,12 +434,14 @@ namespace API_NAME {
 			}
 #endif
 
-			static constexpr u32 CHOSEN_SURFACE_FORMAT_INDEX = 3; /* definitely review */
-			VkSurfaceFormatKHR const surface_format = surface_formats[CHOSEN_SURFACE_FORMAT_INDEX];
+			VkSurfaceFormatKHR const surface_format = *std::find_if(std::cbegin(surface_formats), std::cend(surface_formats), [](auto&& surface_format) { return std::any_of(std::cbegin(ACCEPTABLE_FORMATS), std::cend(ACCEPTABLE_FORMATS), [&surface_format](auto&& format) { return surface_format.format == format; }); });
+
 			m_SurfaceFormat = surface_format.format;
 			//VkPresentModeKHR const surface_present_mode = VK_PRESENT_MODE_FIFO_KHR; /* v-sync */
-			m_Extent = surface_capabilities.currentExtent.width == std::numeric_limits<u32>::max() || surface_capabilities.currentExtent.height == std::numeric_limits<u32>::max() ? VkExtent2D{ std::clamp(800U, surface_capabilities.minImageExtent.width, surface_capabilities.maxImageExtent.width), std::clamp(600U, surface_capabilities.minImageExtent.height, surface_capabilities.maxImageExtent.height) } : surface_capabilities.currentExtent;
+			m_Extent = surface_capabilities.currentExtent.width == std::numeric_limits<u32>::max() || surface_capabilities.currentExtent.height == std::numeric_limits<u32>::max() ? VkExtent2D{ std::clamp(1000U, surface_capabilities.minImageExtent.width, surface_capabilities.maxImageExtent.width), std::clamp(1000U, surface_capabilities.minImageExtent.height, surface_capabilities.maxImageExtent.height) } : surface_capabilities.currentExtent;
 			u32 const min_image_count = surface_capabilities.minImageCount + 1;
+
+			SPDLOG_INFO("{}, {}, {}", m_Extent.width, m_Extent.height, getEnumString(m_SurfaceFormat));
 
 			VkSwapchainCreateInfoKHR const swapchain_create_info{
 				.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
@@ -451,8 +455,8 @@ namespace API_NAME {
 				.imageArrayLayers = 1,
 				.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
 				.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
-				.queueFamilyIndexCount{},
-				.pQueueFamilyIndices{},
+				.queueFamilyIndexCount = 0,
+				.pQueueFamilyIndices = nullptr,
 				.preTransform = surface_capabilities.currentTransform,
 				.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 				.presentMode = VK_PRESENT_MODE_FIFO_KHR, /* verify */
@@ -477,17 +481,17 @@ namespace API_NAME {
 				SPDLOG_ERROR("vkGetSwapchainImagesKHR failed count fetch: {}", getEnumString(result));
 			}
 #endif
-			std::vector<VkImage> images(image_count);
-			result = vkGetSwapchainImagesKHR(m_LogicalDevice, m_Swapchain, &image_count, images.data());
+			m_SwapchainImages.resize(image_count);
+			result = vkGetSwapchainImagesKHR(m_LogicalDevice, m_Swapchain, &image_count, m_SwapchainImages.data());
 #ifdef _DEBUG
 			if (result != VK_SUCCESS) {
 				SPDLOG_ERROR("vkGetSwapchainImagesKHR failed fetch: {}", getEnumString(result));
 			}
 #endif
 
-			m_ImageViews.resize(image_count);
-			for (auto [image_view, image] : std::views::zip(m_ImageViews, images)) {
-				std::tie(result, image_view) = createImageView(m_LogicalDevice, image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
+			m_SwapchainImageViews.resize(image_count);
+			for (auto [image_view, image] : std::views::zip(m_SwapchainImageViews, m_SwapchainImages)) {
+				std::tie(result, image_view) = createImageView(m_LogicalDevice, image, m_SurfaceFormat, VK_IMAGE_ASPECT_COLOR_BIT);
 #ifdef _DEBUG
 				if (result != VK_SUCCESS) {
 					SPDLOG_ERROR("createImageView failed image view creation: {}", getEnumString(result));
@@ -538,17 +542,17 @@ namespace API_NAME {
 
 			VkShaderModuleCreateInfo const vertex_shader_module_create_info{
 				.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-				.pNext{},
+				.pNext = nullptr,
 				.flags{},
-				.codeSize = vertex_shader_code.size() * sizeof(u32),
-				.pCode = vertex_shader_code.data()
+				.codeSize = std::size(vertex_shader_code) * sizeof(u32),
+				.pCode = std::data(vertex_shader_code)
 			};
 			VkShaderModuleCreateInfo const fragment_shader_module_create_info{
 				.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-				.pNext{},
+				.pNext = nullptr,
 				.flags{},
-				.codeSize = fragment_shader_code.size() * sizeof(u32),
-				.pCode = fragment_shader_code.data()
+				.codeSize = std::size(fragment_shader_code) * sizeof(u32),
+				.pCode = std::data(fragment_shader_code)
 			};
 
 			VkShaderModule vertex_shader_module, fragment_shader_module;
@@ -567,21 +571,21 @@ namespace API_NAME {
 			PipelineShaderStageCreateInfos const shader_stage_create_infos{
 			.vertex_stage_create_info{
 				.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-				.pNext{},
+				.pNext = nullptr,
 				.flags{},
 				.stage = VK_SHADER_STAGE_VERTEX_BIT,
 				.module = vertex_shader_module,
 				.pName = "main",
-				.pSpecializationInfo{}
+				.pSpecializationInfo = nullptr
 			},
 			.fragment_stage_create_info{
 				.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-				.pNext{},
+				.pNext = nullptr,
 				.flags{},
 				.stage = VK_SHADER_STAGE_FRAGMENT_BIT,
 				.module = fragment_shader_module,
 				.pName = "main",
-				.pSpecializationInfo{}
+				.pSpecializationInfo = nullptr
 			}
 			};
 			std::array<VkVertexInputBindingDescription, 2> vertex_binding_descriptions{ {
@@ -630,7 +634,7 @@ namespace API_NAME {
 
 			VkPipelineViewportStateCreateInfo const viewport_state_create_info{
 				.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-				.pNext{},
+				.pNext = nullptr,
 				.flags{},
 				.viewportCount = 1,
 				.pViewports = &m_Viewport,
@@ -639,7 +643,7 @@ namespace API_NAME {
 			};
 			VkPipelineRasterizationStateCreateInfo const rasterization_state_create_info{
 				.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-				.pNext{},
+				.pNext = nullptr,
 				.flags{},
 				.depthClampEnable = VK_FALSE,
 				.rasterizerDiscardEnable = VK_FALSE,
@@ -655,7 +659,7 @@ namespace API_NAME {
 			};
 			VkPipelineMultisampleStateCreateInfo const multisample_state_create_info{
 				.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-				.pNext{},
+				.pNext = nullptr,
 				.flags{},
 				.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
 				.sampleShadingEnable = VK_FALSE,
@@ -666,7 +670,7 @@ namespace API_NAME {
 			};
 			VkPipelineDepthStencilStateCreateInfo const depth_stencil_state_create_info{
 				.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-				.pNext{},
+				.pNext = nullptr,
 				.flags{},
 				.depthTestEnable{},
 				.depthWriteEnable{},
@@ -691,7 +695,7 @@ namespace API_NAME {
 			};
 			VkPipelineColorBlendStateCreateInfo const colour_blend_state_create_info{
 				.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-				.pNext{},
+				.pNext = nullptr,
 				.flags{},
 				.logicOpEnable = VK_FALSE,
 				.logicOp = VK_LOGIC_OP_COPY,
@@ -766,14 +770,14 @@ namespace API_NAME {
 			VkSubpassDescription const subpass_description{
 				.flags{},
 				.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-				.inputAttachmentCount{},
-				.pInputAttachments{},
+				.inputAttachmentCount = 0,
+				.pInputAttachments = nullptr,
 				.colorAttachmentCount = 1,
 				.pColorAttachments = &attachment_references[0],
-				.pResolveAttachments{},
+				.pResolveAttachments = nullptr,
 				.pDepthStencilAttachment = &attachment_references[1],
-				.preserveAttachmentCount{},
-				.pPreserveAttachments{}
+				.preserveAttachmentCount = 0,
+				.pPreserveAttachments = nullptr
 			};
 
 			VkSubpassDependency const subpass_dependency{
@@ -787,7 +791,7 @@ namespace API_NAME {
 			};
 			VkRenderPassCreateInfo const render_pass_create_info{
 				.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-				.pNext{},
+				.pNext = nullptr,
 				.flags{},
 				.attachmentCount = ATTACHMENT_COUNT,
 				.pAttachments = attachment_descriptions.data(),
@@ -895,8 +899,8 @@ namespace API_NAME {
 		}
 		
 		/* Framebuffers */ {
-			m_Framebuffers.resize(std::size(m_ImageViews));
-			for (auto [frame_buffer, image_view] : std::views::zip(m_Framebuffers, m_ImageViews)) {
+			m_Framebuffers.resize(std::size(m_SwapchainImageViews));
+			for (auto [frame_buffer, image_view] : std::views::zip(m_Framebuffers, m_SwapchainImageViews)) {
 				std::array<VkImageView, 2> const image_view_attachments = { image_view, m_DepthBufferView };
 
 				VkFramebufferCreateInfo const framebuffer_create_info{
@@ -1080,7 +1084,7 @@ namespace API_NAME {
 			VkSemaphoreCreateInfo static constexpr semaphore_create_info{
 				.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
 				.pNext = nullptr,
-				.flags{}
+				.flags = VK_SEMAPHORE_TYPE_BINARY
 			};
 			VkFenceCreateInfo static constexpr fence_create_info{
 				.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
@@ -1136,7 +1140,7 @@ namespace API_NAME {
 		vkDestroyCommandPool(m_LogicalDevice, m_CommandPool, nullptr);
 
 		/* Frame Buffer and Image View Cleanup */ {
-			for (auto [frame_buffer, image_view] : std::views::zip(m_Framebuffers, m_ImageViews)) {
+			for (auto [frame_buffer, image_view] : std::views::zip(m_Framebuffers, m_SwapchainImageViews)) {
 				vkDestroyFramebuffer(m_LogicalDevice, frame_buffer, nullptr);
 				vkDestroyImageView(m_LogicalDevice, image_view, nullptr);
 			}
@@ -1182,20 +1186,14 @@ namespace API_NAME {
 	void Renderer::RecreateSwapchain() {
 		VkResult result;
 
+		VkSwapchainKHR old_swapchain = m_Swapchain;
+
 		result = vkDeviceWaitIdle(m_LogicalDevice);
 #ifdef _DEBUG
 		if (result != VK_SUCCESS) {
 			SPDLOG_ERROR("vkDeviceWaiIdle failed... waiting: {}", getEnumString(result));
 		}
 #endif
-
-		/* Cleanup */ {
-			for (auto [frame_buffer, image_view] : std::views::zip(m_Framebuffers, m_ImageViews)) {
-				vkDestroyFramebuffer(m_LogicalDevice, frame_buffer, nullptr);
-				vkDestroyImageView(m_LogicalDevice, image_view, nullptr);
-			}
-			vkDestroySwapchainKHR(m_LogicalDevice, m_Swapchain, nullptr);
-		}
 
 		/* Swapchain Recreation */ {
 			VkSurfaceFormatKHR surface_format;
@@ -1216,18 +1214,22 @@ namespace API_NAME {
 					SPDLOG_ERROR("vkGetPhysicalDeviceSurfaceFormatsKHR failed fetch: {}", getEnumString(result));
 				}
 #endif
-				surface_format = surface_formats[3];
+				surface_format = *std::find_if(std::cbegin(surface_formats), std::cend(surface_formats), [](auto&& surface_format) { return std::any_of(std::cbegin(ACCEPTABLE_FORMATS), std::cend(ACCEPTABLE_FORMATS), [&surface_format](auto&& format) { return surface_format.format == format; }); });
 				VkSurfaceCapabilitiesKHR surface_capabilities;
 				result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_PhysicalDevice, m_Surface, &surface_capabilities);
 #ifdef _DEBUG
 				if (result != VK_SUCCESS) {
 					SPDLOG_ERROR("vkGetPhysicalDeviceSurfaceCapabilitiesKHR failed fetch: {}", getEnumString(result));
 				}
+
+				m_SurfaceFormat = surface_format.format;
 #endif
 				pre_transform = surface_capabilities.currentTransform;
 				min_image_count = surface_capabilities.minImageCount + 1;
 				m_Extent = surface_capabilities.currentExtent.width == std::numeric_limits<u32>::max() || surface_capabilities.currentExtent.height == std::numeric_limits<u32>::max() ? VkExtent2D{ std::clamp(800U, surface_capabilities.minImageExtent.width, surface_capabilities.maxImageExtent.width), std::clamp(600U, surface_capabilities.minImageExtent.height, surface_capabilities.maxImageExtent.height) } : surface_capabilities.currentExtent;
 			}
+
+			SPDLOG_INFO("{}, {}, {}", m_Extent.width, m_Extent.height, getEnumString(m_SurfaceFormat));
 
 			VkSwapchainCreateInfoKHR const swapchain_create_info{
 				.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
@@ -1235,7 +1237,7 @@ namespace API_NAME {
 				.flags{},
 				.surface = m_Surface,
 				.minImageCount = min_image_count,
-				.imageFormat = surface_format.format,
+				.imageFormat = m_SurfaceFormat,
 				.imageColorSpace = surface_format.colorSpace,
 				.imageExtent = m_Extent,
 				.imageArrayLayers = 1,
@@ -1247,7 +1249,7 @@ namespace API_NAME {
 				.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 				.presentMode = VK_PRESENT_MODE_FIFO_KHR,
 				.clipped = VK_TRUE,
-				.oldSwapchain = VK_NULL_HANDLE,	/* used for swapchain recreation. research before use */
+				.oldSwapchain = old_swapchain,
 			};
 			result = vkCreateSwapchainKHR(m_LogicalDevice, &swapchain_create_info, nullptr, &m_Swapchain);
 #ifdef _DEBUG
@@ -1255,6 +1257,27 @@ namespace API_NAME {
 				SPDLOG_ERROR("vkCreateSwapchainKHR failed creation: {}", getEnumString(result));
 			}
 #endif
+		}
+
+		m_Viewport = {
+				.x = 0,
+				.y = 0,
+				.width = static_cast<f32>(m_Extent.width),
+				.height = static_cast<f32>(m_Extent.height),
+				.minDepth = 0.f,
+				.maxDepth = 1.f
+		};
+		m_Scissor = {
+			.offset{},
+			.extent = m_Extent
+		};
+
+		/* Cleanup */ {
+			for (auto [frame_buffer, image_view] : std::views::zip(m_Framebuffers, m_SwapchainImageViews)) {
+				vkDestroyFramebuffer(m_LogicalDevice, frame_buffer, nullptr);
+				vkDestroyImageView(m_LogicalDevice, image_view, nullptr);
+			}
+			vkDestroySwapchainKHR(m_LogicalDevice, old_swapchain, nullptr);
 		}
 
 		/* Depth Buffer Recreation */ {
@@ -1290,15 +1313,15 @@ namespace API_NAME {
 				SPDLOG_ERROR("vkGetSwapchainImagesKHR failed count fetch: {}", getEnumString(result), nullptr);
 			}
 #endif
-			std::vector<VkImage> images(image_count);
-			result = vkGetSwapchainImagesKHR(m_LogicalDevice, m_Swapchain, &image_count, images.data());
+			m_SwapchainImages.resize(image_count);
+			result = vkGetSwapchainImagesKHR(m_LogicalDevice, m_Swapchain, &image_count, std::data(m_SwapchainImages));
 #ifdef _DEBUG
 			if (result != VK_SUCCESS) {
 				SPDLOG_ERROR("vkGetSwapchainImagesKHR failed fetch: {}", getEnumString(result));
 			}
 #endif
-			for (auto [frame_buffer, image_view, image] : std::views::zip(m_Framebuffers, m_ImageViews, images)) {
-				std::tie(result, image_view) = createImageView(m_LogicalDevice, image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
+			for (auto [frame_buffer, image_view, image] : std::views::zip(m_Framebuffers, m_SwapchainImageViews, m_SwapchainImages)) {
+				std::tie(result, image_view) = createImageView(m_LogicalDevice, image, m_SurfaceFormat, VK_IMAGE_ASPECT_COLOR_BIT);
 #ifdef _DEBUG
 				if (result != VK_SUCCESS) {
 					SPDLOG_ERROR("createImageView failed image view creation: {}", getEnumString(result));
@@ -1331,7 +1354,7 @@ namespace API_NAME {
 
 		VkCommandBufferBeginInfo static constexpr command_buffer_begin_info{
 			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-			.pNext{},
+			.pNext = nullptr,
 			.flags{}, /* review */
 			.pInheritanceInfo{}
 		};
@@ -1381,9 +1404,6 @@ namespace API_NAME {
 		vkCmdBindVertexBuffers(command_buffer, 1, 1, &buffer, std::data(offsets));
 		vkCmdBindIndexBuffer(command_buffer, m_IndexBuffer.buffer(), 0, VK_INDEX_TYPE_UINT32);
 		vkCmdDrawIndexed(command_buffer, m_IndexBuffer.size() / 4, 2, 0, 0, 0);
-		//vertex_buffer.free(m_LogicalDevice);
-		//per_instance_buffer.free(m_LogicalDevice);
-		//index_buffer.free(m_LogicalDevice);
 
 		vkCmdEndRenderPass(command_buffer);
 		result = vkEndCommandBuffer(command_buffer);

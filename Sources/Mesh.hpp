@@ -24,14 +24,13 @@ namespace API_NAME {
 		std::string_view static constexpr NULL_ID = "";
 
 		Mesh() = default;
-		Mesh(id_type const& id, bool load_on_construct = false);
+		Mesh(id_type const& id, std::filesystem::path const& file_path);
 
 		Mesh(Mesh const& mesh);
 
 		void operator=(Mesh const& mesh);
 
 		void load(std::filesystem::path const& file_path);
-		void ensureLoaded();
 		void free();
 
 		[[nodiscard]] bool isLoaded() const noexcept;

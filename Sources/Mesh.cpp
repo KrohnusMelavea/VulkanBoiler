@@ -1,22 +1,20 @@
-#define TINYOBJLOADER_IMPLEMENTATION
-
 #include "Common/Util.hpp"
 #include "Mesh.hpp"
 
 #pragma warning(push, 0)
 #include <spdlog/spdlog.h>
-#include <tiny_obj_loader.h>
 #include <tiny_gltf/tiny_gltf.h>
+#include <tiny_obj_loader/tiny_obj_loader.h>
 #include <ranges>
 #include <numeric>
 #include <algorithm>
 #pragma warning(pop)
 
 namespace API_NAME {
-	Mesh::Mesh(Mesh::id_type const& id, bool load_on_construct) : m_IsLoaded{ false }, m_ID{ id } {
-
+	Mesh::Mesh(Mesh::id_type const& id, std::filesystem::path const& file_path) : m_IsLoaded{ false }, m_ID{ id } {
+		load(file_path);
 	}
-	Mesh::Mesh(Mesh const& mesh) : m_IsLoaded{ mesh.m_IsLoaded }, m_ID{ mesh.m_ID }, m_FilePath{ mesh.m_FilePath }, m_Vertices { std::make_unique<Vertex3D[]>(std::size(mesh.m_VertexView)) }, m_Indices{ std::make_unique<u32[]>(std::size(mesh.m_IndexView)) } {
+	Mesh::Mesh(Mesh const& mesh) : m_IsLoaded{ mesh.m_IsLoaded }, m_ID{ mesh.m_ID }, m_Vertices { std::make_unique<Vertex3D[]>(std::size(mesh.m_VertexView)) }, m_Indices{ std::make_unique<u32[]>(std::size(mesh.m_IndexView)) } {
 		m_VertexView = { m_Vertices.get(), std::size(mesh.m_VertexView) };
 		m_IndexView = { m_Indices.get(), std::size(mesh.m_IndexView) };
 		(void)std::copy(std::cbegin(mesh.m_VertexView), std::cend(mesh.m_VertexView), std::begin(mesh.m_VertexView));
@@ -26,7 +24,6 @@ namespace API_NAME {
 	void Mesh::operator=(Mesh const& mesh) {
 		m_IsLoaded = mesh.m_IsLoaded;
 		m_ID = mesh.m_ID;
-		m_FilePath = mesh.m_FilePath;
 		if (std::size(m_VertexView) != std::size(mesh.m_VertexView)) {
 			m_Vertices = std::make_unique<Vertex3D[]>(std::size(mesh.m_VertexView));
 			m_VertexView = { m_Vertices.get(), std::size(mesh.m_VertexView) };
@@ -44,7 +41,6 @@ namespace API_NAME {
 			free();
 		}
 
-		auto const file_path = file_path.string();
 		SupportedFileFormat file_format = SupportedFileFormat::Null;
 		auto const file_format_string = file_path.extension().string();
 		if (file_format_string == ".obj") {
@@ -64,7 +60,7 @@ namespace API_NAME {
 			std::string warn, err;
 
 
-			[[maybe_unused]] bool result = tinyobj::LoadObj(&attributes, &shapes, &materials, &warn, &err, file_path.c_str());
+			[[maybe_unused]] bool result = tinyobj::LoadObj(&attributes, &shapes, &materials, &warn, &err, file_path.string().c_str());
 #ifdef _DEBUG
 			if (!result) {
 				SPDLOG_ERROR("tinyobj::LoadObject failed to load object:\n{}\n{}", warn, err);
@@ -112,13 +108,6 @@ namespace API_NAME {
 		}
 		case SupportedFileFormat::Null:
 			break;
-		}
-
-		
-	}
-	void Mesh::ensureLoaded() {
-		if (!m_IsLoaded) {
-			load();
 		}
 	}
 	void Mesh::free() {

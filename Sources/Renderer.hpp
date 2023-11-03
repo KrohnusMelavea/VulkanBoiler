@@ -9,9 +9,9 @@
 #pragma warning(push, 0)
 #include <spdlog/spdlog.h>
 #include <vulkan/vulkan.hpp>
-#include <array>
-#include <tuple>
+#include <array>	//std::array
 #pragma warning(pop)
+
 
 namespace API_NAME {
 	class Renderer {
@@ -31,6 +31,7 @@ namespace API_NAME {
 		Camera& camera();
 
 		bool resized;
+		
 
 	private:
 		void RecreateSwapchain();
@@ -53,9 +54,10 @@ namespace API_NAME {
 			"VK_KHR_surface",
 		} };
 #endif
-		std::array<char const* const, 1> static constexpr DEVICE_EXTENSIONS{ { "VK_KHR_swapchain" } };
+		std::array<char const* const, 1> static constexpr DEVICE_EXTENSIONS{ "VK_KHR_swapchain" };
 		u32 static constexpr FRAMES_IN_FLIGHT = 2;
 		u32 static constexpr MODEL_COUNT = 2;
+		std::array<VkFormat, 2> static constexpr ACCEPTABLE_FORMATS{ VK_FORMAT_B8G8R8A8_SRGB, VK_FORMAT_R8G8B8A8_SRGB };
 
 		VkInstance m_Instance;
 #ifdef _DEBUG
@@ -65,6 +67,8 @@ namespace API_NAME {
 		CycleTimer m_FrameTimer;
 		Camera m_Camera;
 		u64 m_FrameCounter;
+
+		
 		
 		std::array<Entity, 2> m_Entities;
 		std::array<UniformBufferObject, 2> m_UBOs;
@@ -78,7 +82,8 @@ namespace API_NAME {
 		VkSurfaceKHR m_Surface;
 		VkFormat m_SurfaceFormat;
 		VkSwapchainKHR m_Swapchain;
-		std::vector<VkImageView> m_ImageViews;
+		std::vector<VkImage> m_SwapchainImages;
+		std::vector<VkImageView> m_SwapchainImageViews;
 		VkViewport m_Viewport;
 		VkRect2D m_Scissor;
 		VkRenderPass m_RenderPass;

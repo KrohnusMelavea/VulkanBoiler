@@ -14,7 +14,7 @@
 *.userprefs
 
 # Mono auto generated files
-mono_crash.*
+mono_crash.*z
 
 # Build results
 [Dd]ebug/
@@ -32,6 +32,8 @@ bld/
 [Oo]ut/
 [Ll]og/
 [Ll]ogs/
+ApplicationIntermediate/
+ApplicationDebugIntermediate/
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/
