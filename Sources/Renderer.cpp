@@ -13,16 +13,15 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <spdlog/spdlog.h>
 #include <array>
-#include <iostream>
-#include <vector>
 #include <limits>
 #include <ranges>
+#include <vector>
+#include <iostream>
 #include <algorithm>
 #include <type_traits>
 #pragma warning(pop)
 
 namespace API_NAME {
-
 	Camera& Renderer::camera() {
 		return m_Camera;
 	}
@@ -363,10 +362,26 @@ namespace API_NAME {
 				SPDLOG_ERROR("vkEnumeratePhysicalDevices failed fetch: {}", getEnumString(result));
 			}
 #endif
-			/* When moving to dedicated, select proper device */
-			m_PhysicalDevice = physical_devices[0];
-			vkGetPhysicalDeviceFeatures(m_PhysicalDevice, &m_PhysicalDeviceFeatures);
-			vkGetPhysicalDeviceProperties(m_PhysicalDevice, &m_PhysicalDeviceProperties);
+			std::vector<VkPhysicalDeviceFeatures> physical_devices_features(physical_device_count);
+			std::vector<VkPhysicalDeviceProperties> physical_devices_properties(physical_device_count);
+			for (auto [physical_device, physical_device_features, physical_device_properties] : std::views::zip(physical_devices, physical_devices_features, physical_devices_properties)) {
+				vkGetPhysicalDeviceFeatures(physical_device, &physical_device_features);
+				vkGetPhysicalDeviceProperties(physical_device, &physical_device_properties);
+			}
+			/* Realistically, some aggregate check instead of a first acceptable check would be performed, in which you'd compare different devices and their features/properties. */
+			auto const physical_device_properties = std::find_if(std::cbegin(physical_devices_properties), std::cend(physical_devices_properties), [](auto&& properties) { return properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU; });
+			if (physical_device_properties == std::cend(physical_devices_properties)) /* No discrete GPUs */ {
+				SPDLOG_WARN("No Discrete GPU Found. Probably fine.");
+				m_PhysicalDevice = physical_devices[0];
+				m_PhysicalDeviceFeatures = physical_devices_features[0];
+				m_PhysicalDeviceProperties = physical_devices_properties[1];
+			}
+			else {
+				std::size_t index = std::distance(std::cbegin(physical_devices_properties), physical_device_properties);
+				m_PhysicalDevice = physical_devices[index];
+				m_PhysicalDeviceFeatures = physical_devices_features[index];
+				m_PhysicalDeviceProperties = physical_devices_properties[index];
+			}
 
 			SPDLOG_DEBUG("Physical Device Selection Finished");
 		}
