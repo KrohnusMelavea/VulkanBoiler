@@ -74,7 +74,6 @@ namespace API_NAME {
 			switch (result) {
 			case VK_ERROR_OUT_OF_DATE_KHR:
 				if (resized) {
-					SPDLOG_INFO("resized");
 					RecreateSwapchain();
 					resized = false;
 				}
@@ -147,7 +146,6 @@ namespace API_NAME {
 			case VK_ERROR_OUT_OF_DATE_KHR:
 			case VK_SUBOPTIMAL_KHR:
 				if (resized) {
-					SPDLOG_INFO("resized");
 					RecreateSwapchain();
 					resized = false;
 				}
@@ -238,30 +236,77 @@ namespace API_NAME {
 		}
 
 		/* Instance Creation */ {
+#ifdef _DEBUG
+			/* Verifying Layer and Extension Presence */ {
+				/* Verifying Layer Presence */ {
+					u32 available_layer_count = 0;
+					result = vkEnumerateInstanceLayerProperties(&available_layer_count, nullptr);
+					if (result != VK_SUCCESS) {
+						SPDLOG_ERROR("vkEnumerateInstanceLayerProperties failed to fetch layer count: {}", getEnumString(result));
+					}
+					if (available_layer_count == 0) {
+						SPDLOG_ERROR("vkEnumerateInstanceLayerProperties retrieved a layer count of 0.");
+					}
+					std::vector<VkLayerProperties> available_layers(available_layer_count);
+					result = vkEnumerateInstanceLayerProperties(&available_layer_count, std::data(available_layers));
+					if (result != VK_SUCCESS) {
+						SPDLOG_ERROR("vkEnumerateInstanceLayerProperties failed to fetch layers: {}", getEnumString(result));
+					}
+
+					for (auto&& layer_name : LAYERS) {
+						if (!std::any_of(std::cbegin(available_layers), std::cend(available_layers), [&layer_name](auto&& layer) { return strncmp(layer.layerName, layer_name, VK_MAX_EXTENSION_NAME_SIZE); })) {
+							SPDLOG_WARN("Layer Missing: {}", layer_name);
+						}
+					}
+				}
+				/* Verifying Extension Presence */ {
+					u32 available_layer_count = 0;
+					result = vkEnumerateInstanceExtensionProperties(nullptr, &available_layer_count, nullptr);
+					if (result != VK_SUCCESS) {
+						SPDLOG_ERROR("vkEnumerateInstanceExtensionProperties failed to fetch extension count: {}", getEnumString(result));
+					}
+					if (available_layer_count == 0) {
+						SPDLOG_ERROR("vkEnumerateInstanceExtensionProperties retrieved an extension count of 0.");
+					}
+					std::vector<VkExtensionProperties> available_extensions(available_layer_count);
+					result = vkEnumerateInstanceExtensionProperties(nullptr, &available_layer_count, nullptr);
+					if (result != VK_SUCCESS) {
+						SPDLOG_ERROR("vkEnumerateInstanceExtensionProperties failed to fetch extensions: {}", getEnumString(result));
+					}
+
+					for (auto&& extension_name : EXTENSIONS) {
+						if (!std::any_of(std::cbegin(available_extensions), std::cend(available_extensions), [&extension_name](auto&& extension) { return strncmp(extension.extensionName, extension_name, VK_MAX_EXTENSION_NAME_SIZE); })) {
+							SPDLOG_WARN("Extension Missing: {}", extension_name);
+						}
+					}
+				}
+				
+			}
+#endif
+
 			VkApplicationInfo static constexpr app_info{
 				.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-					.pNext{},
-					.pApplicationName = "Vulkan Boiler",
-					.applicationVersion = VK_MAKE_VERSION(0, 0, 0),
-					.pEngineName = "Vulkan Boiler",
-					.engineVersion = VK_MAKE_VERSION(0, 0, 0),
-					.apiVersion = VK_API_VERSION_1_3,
+				.pNext{},
+				.pApplicationName = "Vulkan Boiler",
+				.applicationVersion = VK_MAKE_VERSION(0, 0, 0),
+				.pEngineName = "Vulkan Boiler",
+				.engineVersion = VK_MAKE_VERSION(0, 0, 0),
+				.apiVersion = VK_API_VERSION_1_3,
 			};
-
 			VkInstanceCreateInfo static constexpr instance_create_info{
 				.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-					.pNext{},
-					.flags{},
-					.pApplicationInfo = &app_info,
+				.pNext{},
+				.flags{},
+				.pApplicationInfo = &app_info,
 #ifdef _DEBUG
-					.enabledLayerCount = static_cast<u32>(LAYERS.size()),
-					.ppEnabledLayerNames = LAYERS.data(),
+				.enabledLayerCount = static_cast<u32>(std::size(LAYERS)),
+				.ppEnabledLayerNames = std::data(LAYERS),
 #else
-					.enabledLayerCount{},
-					.ppEnabledLayerNames{},
+				.enabledLayerCount{},
+				.ppEnabledLayerNames{},
 #endif
-					.enabledExtensionCount = static_cast<u32>(EXTENSIONS.size()),
-					.ppEnabledExtensionNames = EXTENSIONS.data()
+				.enabledExtensionCount = static_cast<u32>(std::size(EXTENSIONS)),
+				.ppEnabledExtensionNames = std::data(EXTENSIONS)
 			};
 			result = vkCreateInstance(&instance_create_info, nullptr, &m_Instance);
 #ifdef _DEBUG
@@ -440,8 +485,6 @@ namespace API_NAME {
 			//VkPresentModeKHR const surface_present_mode = VK_PRESENT_MODE_FIFO_KHR; /* v-sync */
 			m_Extent = surface_capabilities.currentExtent.width == std::numeric_limits<u32>::max() || surface_capabilities.currentExtent.height == std::numeric_limits<u32>::max() ? VkExtent2D{ std::clamp(1000U, surface_capabilities.minImageExtent.width, surface_capabilities.maxImageExtent.width), std::clamp(1000U, surface_capabilities.minImageExtent.height, surface_capabilities.maxImageExtent.height) } : surface_capabilities.currentExtent;
 			u32 const min_image_count = surface_capabilities.minImageCount + 1;
-
-			SPDLOG_INFO("{}, {}, {}", m_Extent.width, m_Extent.height, getEnumString(m_SurfaceFormat));
 
 			VkSwapchainCreateInfoKHR const swapchain_create_info{
 				.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
@@ -1228,8 +1271,6 @@ namespace API_NAME {
 				min_image_count = surface_capabilities.minImageCount + 1;
 				m_Extent = surface_capabilities.currentExtent.width == std::numeric_limits<u32>::max() || surface_capabilities.currentExtent.height == std::numeric_limits<u32>::max() ? VkExtent2D{ std::clamp(800U, surface_capabilities.minImageExtent.width, surface_capabilities.maxImageExtent.width), std::clamp(600U, surface_capabilities.minImageExtent.height, surface_capabilities.maxImageExtent.height) } : surface_capabilities.currentExtent;
 			}
-
-			SPDLOG_INFO("{}, {}, {}", m_Extent.width, m_Extent.height, getEnumString(m_SurfaceFormat));
 
 			VkSwapchainCreateInfoKHR const swapchain_create_info{
 				.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,

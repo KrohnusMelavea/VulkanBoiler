@@ -113,7 +113,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;NOMINMAX;VK_USE_PLATFORM_WIN32_KHR;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\SE\Libraries\C++\spdlog\include;C:\SE\Libraries\C++\tiny_obj_loader;C:\SE\Libraries\C++\tiny_gltf;C:\SE\Libraries\C++\VulkanSDK\Include;%(AdditionalIncludeDirectories);C:\SE\Libraries\C++\stb</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\SE\Libraries\C++\spdlog\include;C:\SE\Libraries\C++\tiny_obj_loader;C:\SE\Libraries\C++\tiny_gltf;C:\SE\Libraries\C++\VulkanSDK\Include;C:\SE\Libraries\C++\stb</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
@@ -135,7 +135,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;NOMINMAX;VK_USE_PLATFORM_WIN32_KHR;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\SE\Libraries\C++\spdlog\include;C:\SE\Libraries\C++\tiny_obj_loader;C:\SE\Libraries\C++\tiny_gltf;C:\SE\Libraries\C++\VulkanSDK\Include;;C:\SE\Libraries\C++\stb</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\SE\Libraries\C++\spdlog\include;C:\SE\Libraries\C++\tiny_obj_loader;C:\SE\Libraries\C++\tiny_gltf;C:\SE\Libraries\C++\VulkanSDK\Include;C:\SE\Libraries\C++\stb</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>

@@ -59,7 +59,6 @@ namespace API_NAME {
 			std::vector<tinyobj::material_t> materials;
 			std::string warn, err;
 
-
 			[[maybe_unused]] bool result = tinyobj::LoadObj(&attributes, &shapes, &materials, &warn, &err, file_path.string().c_str());
 #ifdef _DEBUG
 			if (!result) {
