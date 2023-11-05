@@ -169,6 +169,7 @@ namespace API_NAME {
 
 		return { result, image_view };
 	}
+
 	VkResult copyBufferToImage(VkDevice const logical_device, VkCommandPool const command_pool, VkQueue const graphics_queue, VkBuffer const buffer, VkImage const image, u32 const width, u32 const height, u32 const layers) {
 		auto [result, command_buffer] = recordOnceOffCommand(logical_device, command_pool);
 #ifdef _DEBUG
@@ -213,6 +214,53 @@ namespace API_NAME {
 
 		return result;
 	}
+	std::tuple<VkResult, VkBuffer, VkDeviceMemory> copyBuffer(VkDevice const logical_device, VkPhysicalDevice const physical_device, VkCommandPool const command_pool, VkQueue const graphics_queue, VkBuffer const src_buffer, VkDeviceSize const size, VkBufferUsageFlags const usage, VkMemoryPropertyFlags const memory_properties) {
+		VkResult result = VK_SUCCESS;
+
+		VkBuffer buffer = VK_NULL_HANDLE;
+		VkDeviceMemory buffer_memory = VK_NULL_HANDLE;
+		
+		std::tie(result, buffer, buffer_memory) = createBuffer(logical_device, physical_device, size, usage, memory_properties);
+#ifdef _DEBUG
+		if (result != VK_SUCCESS) {
+			SPDLOG_ERROR("createBuffer failed buffer creation: {}", getEnumString(result));
+			return { result, buffer, buffer_memory };
+		}
+#endif
+
+		VkCommandBufferAllocateInfo const command_buffer_allocate_info{
+			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+			.pNext = nullptr,
+			.commandPool = command_pool,
+			.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+			.commandBufferCount = 1
+		};		
+		VkCommandBuffer staging_command_buffer = VK_NULL_HANDLE;
+		result = vkAllocateCommandBuffers(logical_device, &command_buffer_allocate_info, &staging_command_buffer);
+#ifdef _DEBUG
+		if (result != VK_SUCCESS) {
+			SPDLOG_ERROR("vkAllocateCommandBuffers failed staging command buffer allocation: {}", getEnumString(result));
+			return { result, buffer, buffer_memory };
+		}
+#endif
+
+		VkBufferCopy const copy_region{
+			.srcOffset = 0,
+			.dstOffset = 0,
+			.size = size
+		};
+		vkCmdCopyBuffer(staging_command_buffer, src_buffer, buffer, 1, &copy_region);
+		result = flushCommandBuffer(logical_device, command_pool, staging_command_buffer, graphics_queue);
+#ifdef _DEBUG
+		if (result != VK_SUCCESS) {
+			SPDLOG_ERROR("flushCommandBuffer failed to flush staging command buffer: {}", getEnumString(result));
+			return { result, buffer, buffer_memory };
+		}
+#endif
+
+		return { result, buffer, buffer_memory };
+	}
+	
 	std::tuple<VkResult, VkCommandBuffer> recordOnceOffCommand(VkDevice const logical_device, VkCommandPool const command_pool) {
 		VkResult result;
 		VkCommandBuffer command_buffer;
@@ -294,6 +342,62 @@ namespace API_NAME {
 
 		return result;
 	}
+
+	VkResult flushCommandBuffer(VkDevice const logical_device, VkCommandPool const command_pool, VkCommandBuffer const command_buffer, VkQueue const queue) {
+		VkResult result;
+
+		result = vkEndCommandBuffer(command_buffer);
+#ifdef _DEBUG
+		if (result != VK_SUCCESS) {
+			SPDLOG_ERROR("vkEndCommandBuffer failed to end command buffer: {}", getEnumString(result));
+			return result;
+		}
+#endif
+		
+		VkFence fence;
+		/* Fence Creation */ {
+			VkFenceCreateInfo const fence_create_info{
+				.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+				.pNext = nullptr,
+				.flags = VK_FENCE_CREATE_SIGNALED_BIT
+			};
+			result = vkCreateFence(logical_device, &fence_create_info, nullptr, &fence);
+#ifdef _DEBUG
+			if (result != VK_SUCCESS) {
+				SPDLOG_ERROR("vkCreateFence failed fence creation: {}", getEnumString(result));
+				return result;
+			}
+#endif
+		}
+		
+		VkSubmitInfo const queue_submit_info{
+			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+			.pNext = nullptr,
+			.waitSemaphoreCount = 0,
+			.pWaitSemaphores = nullptr,
+			.pWaitDstStageMask = nullptr,
+			.commandBufferCount = 1,
+			.pCommandBuffers = &command_buffer,
+			.signalSemaphoreCount = 0,
+			.pSignalSemaphores = nullptr
+		};
+		result = vkQueueSubmit(queue, 1, &queue_submit_info, fence);
+#ifdef _DEBUG
+		if (result != VK_SUCCESS) {
+			SPDLOG_ERROR("vkQueueSubmit failed queue submission: {}", getEnumString(result));
+			return result;
+		}
+#endif
+		result = vkWaitForFences(logical_device, 1, &fence, VK_TRUE, std::numeric_limits<u64>::max());
+#ifdef _DEBUG
+		if (result != VK_SUCCESS) {
+			SPDLOG_ERROR("vkWaitForFences failed waiting for fences: {}", getEnumString(result));
+			return result;
+		}
+#endif
+		vkDestroyFence(logical_device, fence, nullptr);
+	}
+	
 	VkResult transitionImageLayout(VkDevice const logical_device, VkCommandPool const command_pool, VkQueue const graphics_queue, VkImage const image, VkFormat const format, VkImageLayout const old_layout, VkImageLayout const new_layout, u32 const layers) {
 		auto [result, command_buffer] = recordOnceOffCommand(logical_device, command_pool);
 #ifdef _DEBUG

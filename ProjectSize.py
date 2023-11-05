@@ -19,6 +19,8 @@ for file in files:
 for directory in directories:
     for folder, _, file_names in os.walk(directory):
         for file_name in file_names:
+            if file_name.endswith(".cso"): continue
+            print(f"{folder}/{file_name}")
             file_size, file_lines = getFileAttributes(f"{folder}/{file_name}")
             total_size += file_size
             total_lines += file_lines

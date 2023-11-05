@@ -22,7 +22,7 @@
 #pragma warning(pop)
 
 namespace API_NAME {
-	Camera& Renderer::camera() {
+	Camera& Renderer::camera() noexcept {
 		return m_Camera;
 	}
 	void Renderer::drawFrame() {
@@ -914,19 +914,36 @@ namespace API_NAME {
 			SPDLOG_DEBUG("Pipeline Creation Finished");
 		}{}
 		
-		/* Command Pool */ {
-			VkCommandPoolCreateInfo const command_pool_create_info{
-			.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-			.pNext{},
-			.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-			.queueFamilyIndex = m_QueueFamilyIndex
-			};
-			result = vkCreateCommandPool(m_LogicalDevice, &command_pool_create_info, nullptr, &m_CommandPool);
+		/* Command Pools */ {
+			/* Command Pool */ {
+				VkCommandPoolCreateInfo const command_pool_create_info{
+					.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+					.pNext = nullptr,
+					.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+					.queueFamilyIndex = m_QueueFamilyIndex
+				};
+				result = vkCreateCommandPool(m_LogicalDevice, &command_pool_create_info, nullptr, &m_CommandPool);
 #ifdef _DEBUG
-			if (result != VK_SUCCESS) {
-				SPDLOG_ERROR("vkCreateCommandPool failed creation: {}", getEnumString(result));
+				if (result != VK_SUCCESS) {
+					SPDLOG_ERROR("vkCreateCommandPool failed creation: {}", getEnumString(result));
+				}
+	#endif 
+				}
+
+			/* Staging Command Pool */ {
+				VkCommandPoolCreateInfo const staging_command_pool_create_info{
+					.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+					.pNext = nullptr,
+					.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT,
+					.queueFamilyIndex = m_QueueFamilyIndex
+				};
+				result = vkCreateCommandPool(m_LogicalDevice, &staging_command_pool_create_info, nullptr, &m_StagingCommandPool);
+#ifdef _DEBUG
+				if (result != VK_SUCCESS) {
+					SPDLOG_ERROR("vkCreateCommandPool failed creation: {}", getEnumString(result));
+				}
+#endif 
 			}
-#endif
 
 			SPDLOG_DEBUG("Command Pool Creation Finished");
 		}
@@ -1196,6 +1213,7 @@ namespace API_NAME {
 		}
 
 		vkDestroyCommandPool(m_LogicalDevice, m_CommandPool, nullptr);
+		vkDestroyCommandPool(m_LogicalDevice, m_StagingCommandPool, nullptr);
 
 		/* Frame Buffer and Image View Cleanup */ {
 			for (auto [frame_buffer, image_view] : std::views::zip(m_Framebuffers, m_SwapchainImageViews)) {
@@ -1468,17 +1486,5 @@ namespace API_NAME {
 			SPDLOG_ERROR("vkEndCommandBuffer failed execution: {}", getEnumString(result));
 		}
 #endif
-	}
-	VkBuffer Renderer::CopyBuffer(VkBuffer buffer, VkDeviceSize const size) const noexcept {
-		auto[result, command_buffer] = recordOnceOffCommand(m_LogicalDevice, m_CommandPool);
-		VkBufferCopy const buffer_copy{
-			.srcOffset{},
-			.dstOffset{},
-			.size = size
-		};
-		VkBuffer dst = VK_NULL_HANDLE;
-		vkCmdCopyBuffer(command_buffer, buffer, dst, 1, &buffer_copy);
-		(void)destroyOnceOffCommand(m_LogicalDevice, m_CommandPool, command_buffer, m_GraphicsQueue);
-		return dst;
 	}
 }

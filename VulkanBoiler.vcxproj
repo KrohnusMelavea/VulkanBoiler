@@ -172,6 +172,7 @@
     <ClInclude Include="Sources\Pixel.hpp" />
     <ClInclude Include="Sources\Renderer.hpp" />
     <ClInclude Include="Sources\ShaderProgram.hpp" />
+    <ClInclude Include="Sources\SupportedImageLayoutTransition.hpp" />
     <ClInclude Include="Sources\UniformBufferObject.hpp" />
     <ClInclude Include="Sources\UniformData.hpp" />
     <ClInclude Include="Sources\UnmappedBuffer.hpp" />

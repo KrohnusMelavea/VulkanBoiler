@@ -96,6 +96,9 @@
     <ClInclude Include="Sources\WindowProperties.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Sources\SupportedImageLayoutTransition.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Sources\Common\Util.cpp">

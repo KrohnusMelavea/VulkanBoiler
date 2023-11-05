@@ -28,7 +28,7 @@ namespace API_NAME {
 
 		void togglePaused() noexcept;
 
-		Camera& camera();
+		Camera& camera() noexcept;
 
 		bool resized;
 		
@@ -36,7 +36,6 @@ namespace API_NAME {
 	private:
 		void RecreateSwapchain();
 		void RecordCommandBuffer(VkCommandBuffer command_buffer, u32 const image_index);
-		[[nodiscard]] VkBuffer CopyBuffer(VkBuffer buffer, VkDeviceSize const size) const noexcept;
 
 #ifdef _DEBUG
 		std::array<char const* const, 1> static constexpr LAYERS{ {
@@ -67,8 +66,6 @@ namespace API_NAME {
 		CycleTimer m_FrameTimer;
 		Camera m_Camera;
 		u64 m_FrameCounter;
-
-		
 		
 		std::array<Entity, 2> m_Entities;
 		std::array<UniformBufferObject, 2> m_UBOs;
@@ -92,6 +89,7 @@ namespace API_NAME {
 		VkPipeline m_GraphicsPipeline;
 		std::vector<VkFramebuffer> m_Framebuffers;
 		VkCommandPool m_CommandPool;
+		VkCommandPool m_StagingCommandPool;
 		VkImage m_DepthBufferImage;
 		VkDeviceMemory m_DepthBufferMemory;
 		VkImageView m_DepthBufferView;
