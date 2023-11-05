@@ -344,7 +344,7 @@ namespace API_NAME {
 	}
 
 	VkResult flushCommandBuffer(VkDevice const logical_device, VkCommandPool const command_pool, VkCommandBuffer const command_buffer, VkQueue const queue) {
-		VkResult result;
+		VkResult result = VK_SUCCESS;
 
 		result = vkEndCommandBuffer(command_buffer);
 #ifdef _DEBUG
@@ -369,25 +369,27 @@ namespace API_NAME {
 			}
 #endif
 		}
-		
-		VkSubmitInfo const queue_submit_info{
-			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-			.pNext = nullptr,
-			.waitSemaphoreCount = 0,
-			.pWaitSemaphores = nullptr,
-			.pWaitDstStageMask = nullptr,
-			.commandBufferCount = 1,
-			.pCommandBuffers = &command_buffer,
-			.signalSemaphoreCount = 0,
-			.pSignalSemaphores = nullptr
-		};
-		result = vkQueueSubmit(queue, 1, &queue_submit_info, fence);
+		/* Command Submission */ {
+			VkSubmitInfo const queue_submit_info{
+				.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+				.pNext = nullptr,
+				.waitSemaphoreCount = 0,
+				.pWaitSemaphores = nullptr,
+				.pWaitDstStageMask = nullptr,
+				.commandBufferCount = 1,
+				.pCommandBuffers = &command_buffer,
+				.signalSemaphoreCount = 0,
+				.pSignalSemaphores = nullptr
+			};
+			result = vkQueueSubmit(queue, 1, &queue_submit_info, fence);
 #ifdef _DEBUG
-		if (result != VK_SUCCESS) {
-			SPDLOG_ERROR("vkQueueSubmit failed queue submission: {}", getEnumString(result));
-			return result;
-		}
+			if (result != VK_SUCCESS) {
+				SPDLOG_ERROR("vkQueueSubmit failed queue submission: {}", getEnumString(result));
+				return result;
+			}
 #endif
+		}
+
 		result = vkWaitForFences(logical_device, 1, &fence, VK_TRUE, std::numeric_limits<u64>::max());
 #ifdef _DEBUG
 		if (result != VK_SUCCESS) {
@@ -396,6 +398,8 @@ namespace API_NAME {
 		}
 #endif
 		vkDestroyFence(logical_device, fence, nullptr);
+
+		return result;
 	}
 	
 	VkResult transitionImageLayout(VkDevice const logical_device, VkCommandPool const command_pool, VkQueue const graphics_queue, VkImage const image, VkFormat const format, VkImageLayout const old_layout, VkImageLayout const new_layout, u32 const layers) {

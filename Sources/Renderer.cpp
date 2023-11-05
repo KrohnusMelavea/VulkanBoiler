@@ -29,7 +29,6 @@ namespace API_NAME {
 		(void)m_FrameTimer.update();
 		auto const frame_time_ns = m_FrameTimer.getCycleTime();
 		f32 frame_time = static_cast<f32>(frame_time_ns.count()) / 10000000.0f;
-
 #ifdef _DEBUG
 		if ((++m_FrameCounter % 100) == 0) {
 			SPDLOG_INFO("Frame Time: {}ms", std::chrono::duration_cast<std::chrono::milliseconds>(frame_time_ns).count());
@@ -58,106 +57,115 @@ namespace API_NAME {
 		}
 
 		/* Draw Frame */ {
-			result = vkWaitForFences(m_LogicalDevice, 1, &m_Fences[m_CurrentFrameIndex], VK_TRUE, std::numeric_limits<u64>::max());
+			/* Wait for previous frame draw to finish */ {
+				result = vkWaitForFences(m_LogicalDevice, 1, &m_Fences[m_CurrentFrameIndex], VK_TRUE, std::numeric_limits<u64>::max());
 #ifdef _DEBUG
-			if (result != VK_SUCCESS) {
-				SPDLOG_ERROR("vkWaitForFences failed execution: {}", getEnumString(result));
-				return;
-			}
+				if (result != VK_SUCCESS) {
+					SPDLOG_ERROR("vkWaitForFences failed execution: {}", getEnumString(result));
+					return;
+				}
 #endif
-
+			}
 			u32 image_index;
-			result = vkAcquireNextImageKHR(m_LogicalDevice, m_Swapchain, std::numeric_limits<u64>::max(), m_ImageAvailableSemaphores[m_CurrentFrameIndex], VK_NULL_HANDLE, &image_index);
+			/* Image Acquisition */ {
+				result = vkAcquireNextImageKHR(m_LogicalDevice, m_Swapchain, std::numeric_limits<u64>::max(), m_ImageAvailableSemaphores[m_CurrentFrameIndex], VK_NULL_HANDLE, &image_index);
 #pragma warning(push)
 #pragma warning(disable : 4061)
-			switch (result) {
-			case VK_ERROR_OUT_OF_DATE_KHR:
-				if (resized) {
-					RecreateSwapchain();
-					resized = false;
+				switch (result) {
+				case VK_ERROR_OUT_OF_DATE_KHR:
+					if (resized) {
+						RecreateSwapchain();
+						resized = false;
+					}
+					break;
+				case VK_SUBOPTIMAL_KHR:
+					break;
+				case VK_SUCCESS:
+					break;
+#ifdef _DEBUG
+				default:
+					SPDLOG_ERROR("vkAcquireNextImageKHR failed fetch: {}", getEnumString(result));
+					return;
+#endif
 				}
-				break;
-			case VK_SUBOPTIMAL_KHR:
-				break;
-			case VK_SUCCESS:
-				break;
-#ifdef _DEBUG
-			default:
-				SPDLOG_ERROR("vkAcquireNextImageKHR failed fetch: {}", getEnumString(result));
-				return;
-#endif
-			}
 #pragma warning(pop)
-
-			result = vkResetFences(m_LogicalDevice, 1, &m_Fences[m_CurrentFrameIndex]);
-#ifdef _DEBUG
-			if (result != VK_SUCCESS) {
-				SPDLOG_ERROR("vkResetFences failed execution: {}", getEnumString(result));
-				return;
 			}
-#endif
-
-			result = vkResetCommandBuffer(m_CommandBuffers[m_CurrentFrameIndex], 0);
+			/* Signal start of new frame draw */ {
+				result = vkResetFences(m_LogicalDevice, 1, &m_Fences[m_CurrentFrameIndex]);
 #ifdef _DEBUG
-			if (result != VK_SUCCESS) {
-				SPDLOG_ERROR("vkResetCommandBuffer failed reset: {}", getEnumString(result));
-				return;
-			}
+				if (result != VK_SUCCESS) {
+					SPDLOG_ERROR("vkResetFences failed execution: {}", getEnumString(result));
+					return;
+				}
 #endif
-			RecordCommandBuffer(m_CommandBuffers[m_CurrentFrameIndex], image_index);
-
-			std::array<VkSemaphore, 1> const wait_semaphores{ m_ImageAvailableSemaphores[m_CurrentFrameIndex] };
-			std::array<VkSemaphore, 1> const signal_semaphores{ m_RenderFinishedSemaphores[m_CurrentFrameIndex] };
-			std::array<VkPipelineStageFlags, 1> static constexpr wait_stages{ VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-			VkSubmitInfo const submit_info{
-				.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-				.pNext = nullptr,
-				.waitSemaphoreCount = static_cast<u32>(std::size(wait_semaphores)),
-				.pWaitSemaphores = std::data(wait_semaphores),
-				.pWaitDstStageMask = std::data(wait_stages),
-				.commandBufferCount = 1,
-				.pCommandBuffers = &m_CommandBuffers[m_CurrentFrameIndex],
-				.signalSemaphoreCount = static_cast<u32>(std::size(signal_semaphores)),
-				.pSignalSemaphores = std::data(signal_semaphores)
-			};
-			result = vkQueueSubmit(m_GraphicsQueue, 1, &submit_info, m_Fences[m_CurrentFrameIndex]);
+			}	
+			/* Re-record drawing command buffer: */ {
+				result = vkResetCommandBuffer(m_DrawingCommandBuffers[m_CurrentFrameIndex], 0);
 #ifdef _DEBUG
-			if (result != VK_SUCCESS) {
-				SPDLOG_ERROR("vkQueueSubmit failed submission: {}", getEnumString(result));
-				return;
-			}
+				if (result != VK_SUCCESS) {
+					SPDLOG_ERROR("vkResetCommandBuffer failed reset: {}", getEnumString(result));
+					return;
+				}
 #endif
-
-			VkPresentInfoKHR const present_info{
-				.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-				.pNext = nullptr,
-				.waitSemaphoreCount = static_cast<u32>(std::size(signal_semaphores)),
-				.pWaitSemaphores = std::data(signal_semaphores),
-				.swapchainCount = 1,
-				.pSwapchains = &m_Swapchain,
-				.pImageIndices = &image_index,
-				.pResults = nullptr /* use if multiple swapchains are in use */
-			};
-			result = vkQueuePresentKHR(m_GraphicsQueue, &present_info);
+				RecordCommandBuffer(m_DrawingCommandBuffers[m_CurrentFrameIndex], image_index);
+			}
+			/* Execute Commands */ {
+				std::array<VkSemaphore, 1> const signal_semaphores{ m_RenderFinishedSemaphores[m_CurrentFrameIndex] };
+				/* Command Submission */ {
+					std::array<VkSemaphore, 1> const wait_semaphores{ m_ImageAvailableSemaphores[m_CurrentFrameIndex] };
+					std::array<VkPipelineStageFlags, 1> static constexpr wait_stages{ VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+					VkSubmitInfo const submit_info{
+						.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+						.pNext = nullptr,
+						.waitSemaphoreCount = static_cast<u32>(std::size(wait_semaphores)),
+						.pWaitSemaphores = std::data(wait_semaphores),
+						.pWaitDstStageMask = std::data(wait_stages),
+						.commandBufferCount = 1,
+						.pCommandBuffers = &m_DrawingCommandBuffers[m_CurrentFrameIndex],
+						.signalSemaphoreCount = static_cast<u32>(std::size(signal_semaphores)),
+						.pSignalSemaphores = std::data(signal_semaphores)
+					};
+					result = vkQueueSubmit(m_GraphicsQueue, 1, &submit_info, m_Fences[m_CurrentFrameIndex]);
+#ifdef _DEBUG
+					if (result != VK_SUCCESS) {
+						SPDLOG_ERROR("vkQueueSubmit failed submission: {}", getEnumString(result));
+						return;
+					}
+#endif
+				}
+				/* Presentation */ {
+					VkPresentInfoKHR const present_info{
+						.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+						.pNext = nullptr,
+						.waitSemaphoreCount = static_cast<u32>(std::size(signal_semaphores)),
+						.pWaitSemaphores = std::data(signal_semaphores),
+						.swapchainCount = 1,
+						.pSwapchains = &m_Swapchain,
+						.pImageIndices = &image_index,
+						.pResults = nullptr /* use if multiple swapchains are in use */
+					};
+					result = vkQueuePresentKHR(m_GraphicsQueue, &present_info);
 #pragma warning(push)
 #pragma warning(disable: 4061)
-			switch (result) {
-			case VK_ERROR_OUT_OF_DATE_KHR:
-			case VK_SUBOPTIMAL_KHR:
-				if (resized) {
-					RecreateSwapchain();
-					resized = false;
-				}
-				break;
-			case VK_SUCCESS:
-				break;
+					switch (result) {
+					case VK_ERROR_OUT_OF_DATE_KHR:
+					case VK_SUBOPTIMAL_KHR:
+						if (resized) {
+							RecreateSwapchain();
+							resized = false;
+						}
+						break;
+					case VK_SUCCESS:
+						break;
 #ifdef _DEBUG
-			default:
-				SPDLOG_ERROR("vkQueuePresentKHR failed presentation: {}", getEnumString(result));
-				return;
+					default:
+						SPDLOG_ERROR("vkQueuePresentKHR failed presentation: {}", getEnumString(result));
+						return;
 #endif
-			}
+					}
 #pragma warning(pop)
+				}
+			}
 
 			m_CurrentFrameIndex = (m_CurrentFrameIndex + 1) % FRAMES_IN_FLIGHT;
 		}
@@ -374,7 +382,7 @@ namespace API_NAME {
 				SPDLOG_WARN("No Discrete GPU Found. Probably fine.");
 				m_PhysicalDevice = physical_devices[0];
 				m_PhysicalDeviceFeatures = physical_devices_features[0];
-				m_PhysicalDeviceProperties = physical_devices_properties[1];
+				m_PhysicalDeviceProperties = physical_devices_properties[0];
 			}
 			else {
 				std::size_t index = std::distance(std::cbegin(physical_devices_properties), physical_device_properties);
@@ -915,29 +923,29 @@ namespace API_NAME {
 		}{}
 		
 		/* Command Pools */ {
-			/* Command Pool */ {
+			/* Resettable Command Pool */ {
 				VkCommandPoolCreateInfo const command_pool_create_info{
 					.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
 					.pNext = nullptr,
 					.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
 					.queueFamilyIndex = m_QueueFamilyIndex
 				};
-				result = vkCreateCommandPool(m_LogicalDevice, &command_pool_create_info, nullptr, &m_CommandPool);
+				result = vkCreateCommandPool(m_LogicalDevice, &command_pool_create_info, nullptr, &m_ResettableCommandPool);
 #ifdef _DEBUG
 				if (result != VK_SUCCESS) {
 					SPDLOG_ERROR("vkCreateCommandPool failed creation: {}", getEnumString(result));
 				}
 	#endif 
-				}
+			}
 
-			/* Staging Command Pool */ {
-				VkCommandPoolCreateInfo const staging_command_pool_create_info{
+			/* Destructable Command Pool */ {
+				VkCommandPoolCreateInfo const command_pool_create_info{
 					.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
 					.pNext = nullptr,
 					.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT,
 					.queueFamilyIndex = m_QueueFamilyIndex
 				};
-				result = vkCreateCommandPool(m_LogicalDevice, &staging_command_pool_create_info, nullptr, &m_StagingCommandPool);
+				result = vkCreateCommandPool(m_LogicalDevice, &command_pool_create_info, nullptr, &m_DestructibleCommandPool);
 #ifdef _DEBUG
 				if (result != VK_SUCCESS) {
 					SPDLOG_ERROR("vkCreateCommandPool failed creation: {}", getEnumString(result));
@@ -963,7 +971,7 @@ namespace API_NAME {
 			}
 #endif
 
-			result = transitionImageLayout(m_LogicalDevice, m_CommandPool, m_GraphicsQueue, m_DepthBufferImage, depth_format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+			result = transitionImageLayout(m_LogicalDevice, m_DestructibleCommandPool, m_GraphicsQueue, m_DepthBufferImage, depth_format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 #ifdef _DEBUG
 			if (result != VK_SUCCESS) {
 				SPDLOG_ERROR("transitionImageLayout failed image layout transision: {}", getEnumString(result));
@@ -1001,7 +1009,7 @@ namespace API_NAME {
 		}
 
 		/* Textures */ {
-			result = AMS.fetchLayeredTexture("Viking Room").create(m_LogicalDevice, m_PhysicalDevice, m_GraphicsQueue, m_CommandPool, m_PhysicalDeviceProperties.limits.maxSamplerAnisotropy);
+			result = AMS.fetchLayeredTexture("Viking Room").create(m_LogicalDevice, m_PhysicalDevice, m_GraphicsQueue, m_DestructibleCommandPool, m_PhysicalDeviceProperties.limits.maxSamplerAnisotropy);
 #ifdef _DEBUG
 			if (result != VK_SUCCESS) {
 				SPDLOG_ERROR("Texture Load Failed: {}", getEnumString(result));
@@ -1137,15 +1145,15 @@ namespace API_NAME {
 			SPDLOG_DEBUG("Descriptor Sets Finished");
 		}
 		
-		/* Command Buffers */ {
+		/* Drawing Command Buffers */ {
 			VkCommandBufferAllocateInfo const command_buffer_allocate_info{
 				.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-				.pNext{},
-				.commandPool = m_CommandPool,
+				.pNext = nullptr,
+				.commandPool = m_ResettableCommandPool,
 				.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
 				.commandBufferCount = FRAMES_IN_FLIGHT
 			};
-			result = vkAllocateCommandBuffers(m_LogicalDevice, &command_buffer_allocate_info, std::data(m_CommandBuffers));
+			result = vkAllocateCommandBuffers(m_LogicalDevice, &command_buffer_allocate_info, std::data(m_DrawingCommandBuffers));
 #ifdef _DEBUG
 			if (result != VK_SUCCESS) {
 				SPDLOG_ERROR("vkAllocateCommandBuffers failed creation: {}", getEnumString(result));
@@ -1212,8 +1220,8 @@ namespace API_NAME {
 			}
 		}
 
-		vkDestroyCommandPool(m_LogicalDevice, m_CommandPool, nullptr);
-		vkDestroyCommandPool(m_LogicalDevice, m_StagingCommandPool, nullptr);
+		vkDestroyCommandPool(m_LogicalDevice, m_ResettableCommandPool, nullptr);
+		vkDestroyCommandPool(m_LogicalDevice, m_DestructibleCommandPool, nullptr);
 
 		/* Frame Buffer and Image View Cleanup */ {
 			for (auto [frame_buffer, image_view] : std::views::zip(m_Framebuffers, m_SwapchainImageViews)) {
@@ -1371,7 +1379,7 @@ namespace API_NAME {
 				SPDLOG_ERROR("createImageView failed image view creation: {}", getEnumString(result));
 			}
 #endif
-			result = transitionImageLayout(m_LogicalDevice, m_CommandPool, m_GraphicsQueue, m_DepthBufferImage, depth_format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+			result = transitionImageLayout(m_LogicalDevice, m_DestructibleCommandPool, m_GraphicsQueue, m_DepthBufferImage, depth_format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 #ifdef _DEBUG
 			if (result != VK_SUCCESS) {
 				SPDLOG_ERROR("transitionImageLayout failed image layout transision: {}", getEnumString(result));

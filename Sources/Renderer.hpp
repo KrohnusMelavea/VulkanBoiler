@@ -88,8 +88,8 @@ namespace API_NAME {
 		VkPipelineLayout m_GraphicsPipelineLayout;
 		VkPipeline m_GraphicsPipeline;
 		std::vector<VkFramebuffer> m_Framebuffers;
-		VkCommandPool m_CommandPool;
-		VkCommandPool m_StagingCommandPool;
+		VkCommandPool m_ResettableCommandPool;
+		VkCommandPool m_DestructibleCommandPool;
 		VkImage m_DepthBufferImage;
 		VkDeviceMemory m_DepthBufferMemory;
 		VkImageView m_DepthBufferView;
@@ -99,7 +99,7 @@ namespace API_NAME {
 		VkDescriptorPool m_DescriptorPool;
 		std::array<VkDescriptorSetLayout, FRAMES_IN_FLIGHT> m_DescriptorSetLayouts;
 		std::array<VkDescriptorSet, FRAMES_IN_FLIGHT> m_DescriptorSets;
-		std::array<VkCommandBuffer, FRAMES_IN_FLIGHT> m_CommandBuffers;
+		std::array<VkCommandBuffer, FRAMES_IN_FLIGHT> m_DrawingCommandBuffers;
 		std::array<VkSemaphore, FRAMES_IN_FLIGHT> m_ImageAvailableSemaphores;
 		std::array<VkSemaphore, FRAMES_IN_FLIGHT> m_RenderFinishedSemaphores;
 		std::array<VkFence, FRAMES_IN_FLIGHT> m_Fences;
