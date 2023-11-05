@@ -51,7 +51,7 @@ namespace API_NAME {
 			keypress.press();
 
 #pragma warning(push)
-#pragma warning(disable : 4062)
+#pragma warning(disable : 4061, 4062)
 			switch (keycode) {
 			case Win32KeyCode::escape:
 				m_Renderer.togglePaused();
@@ -69,7 +69,7 @@ namespace API_NAME {
 			keypress.release();
 
 #pragma warning(push)
-#pragma warning(disable : 4062)
+#pragma warning(disable : 4061, 4062)
 			switch (keycode) {
 			default:
 				return 0;

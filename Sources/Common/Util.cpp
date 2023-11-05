@@ -228,18 +228,11 @@ namespace API_NAME {
 		}
 #endif
 
-		VkCommandBufferAllocateInfo const command_buffer_allocate_info{
-			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-			.pNext = nullptr,
-			.commandPool = command_pool,
-			.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-			.commandBufferCount = 1
-		};		
-		VkCommandBuffer staging_command_buffer = VK_NULL_HANDLE;
-		result = vkAllocateCommandBuffers(logical_device, &command_buffer_allocate_info, &staging_command_buffer);
+		VkCommandBuffer command_buffer;
+		std::tie(result, command_buffer) = recordOnceOffCommand(logical_device, command_pool);
 #ifdef _DEBUG
 		if (result != VK_SUCCESS) {
-			SPDLOG_ERROR("vkAllocateCommandBuffers failed staging command buffer allocation: {}", getEnumString(result));
+			SPDLOG_ERROR("recordOnceOffCommand failed to record once-off command: {}", getEnumString(result));
 			return { result, buffer, buffer_memory };
 		}
 #endif
@@ -249,11 +242,11 @@ namespace API_NAME {
 			.dstOffset = 0,
 			.size = size
 		};
-		vkCmdCopyBuffer(staging_command_buffer, src_buffer, buffer, 1, &copy_region);
-		result = flushCommandBuffer(logical_device, command_pool, staging_command_buffer, graphics_queue);
+		vkCmdCopyBuffer(command_buffer, src_buffer, buffer, 1, &copy_region);
+		result = destroyOnceOffCommandFenced(logical_device, command_pool, command_buffer, graphics_queue);
 #ifdef _DEBUG
 		if (result != VK_SUCCESS) {
-			SPDLOG_ERROR("flushCommandBuffer failed to flush staging command buffer: {}", getEnumString(result));
+			SPDLOG_ERROR("destroyOnceOffCommandFenced failed to flush staging command buffer: {}", getEnumString(result));
 			return { result, buffer, buffer_memory };
 		}
 #endif
@@ -268,7 +261,7 @@ namespace API_NAME {
 		/* Command Buffer Allocation */ {
 			VkCommandBufferAllocateInfo const command_buffer_allocation_info{
 				.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-				.pNext{},
+				.pNext = nullptr,
 				.commandPool = command_pool,
 				.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
 				.commandBufferCount = 1
@@ -285,7 +278,7 @@ namespace API_NAME {
 		/* Command Buffer Start */ {
 			VkCommandBufferBeginInfo const command_buffer_begin_info{
 				.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-				.pNext{},
+				.pNext = nullptr,
 				.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
 				.pInheritanceInfo{}
 			};
@@ -342,8 +335,7 @@ namespace API_NAME {
 
 		return result;
 	}
-
-	VkResult flushCommandBuffer(VkDevice const logical_device, VkCommandPool const command_pool, VkCommandBuffer const command_buffer, VkQueue const queue) {
+	VkResult destroyOnceOffCommandFenced(VkDevice const logical_device, VkCommandPool const command_pool, VkCommandBuffer const command_buffer, VkQueue const graphics_queue) {
 		VkResult result = VK_SUCCESS;
 
 		result = vkEndCommandBuffer(command_buffer);
@@ -353,13 +345,13 @@ namespace API_NAME {
 			return result;
 		}
 #endif
-		
+
 		VkFence fence;
 		/* Fence Creation */ {
 			VkFenceCreateInfo const fence_create_info{
 				.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
 				.pNext = nullptr,
-				.flags = VK_FENCE_CREATE_SIGNALED_BIT
+				.flags{}
 			};
 			result = vkCreateFence(logical_device, &fence_create_info, nullptr, &fence);
 #ifdef _DEBUG
@@ -381,7 +373,7 @@ namespace API_NAME {
 				.signalSemaphoreCount = 0,
 				.pSignalSemaphores = nullptr
 			};
-			result = vkQueueSubmit(queue, 1, &queue_submit_info, fence);
+			result = vkQueueSubmit(graphics_queue, 1, &queue_submit_info, fence);
 #ifdef _DEBUG
 			if (result != VK_SUCCESS) {
 				SPDLOG_ERROR("vkQueueSubmit failed queue submission: {}", getEnumString(result));

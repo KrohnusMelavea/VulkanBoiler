@@ -5,6 +5,8 @@
 #include "Vertex3D.hpp"
 #include "Entity.hpp"
 #include "CycleTimer.hpp"
+#include "MappedBuffer.hpp"
+#include "UnmappedBuffer.hpp"
 #include "UniformBufferObject.hpp"
 #pragma warning(push, 0)
 #include <spdlog/spdlog.h>
@@ -93,9 +95,9 @@ namespace API_NAME {
 		VkImage m_DepthBufferImage;
 		VkDeviceMemory m_DepthBufferMemory;
 		VkImageView m_DepthBufferView;
-		MappedBuffer m_VertexBuffer;
+		UnmappedBuffer m_VertexBuffer;
+		UnmappedBuffer m_IndexBuffer;
 		MappedBuffer m_PerInstanceBuffer;
-		MappedBuffer m_IndexBuffer;
 		VkDescriptorPool m_DescriptorPool;
 		std::array<VkDescriptorSetLayout, FRAMES_IN_FLIGHT> m_DescriptorSetLayouts;
 		std::array<VkDescriptorSet, FRAMES_IN_FLIGHT> m_DescriptorSets;

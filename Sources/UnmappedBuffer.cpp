@@ -9,7 +9,28 @@
 #pragma warning(pop)
 
 namespace API_NAME {
-	VkResult UnmappedBuffer::create(VkDevice const logical_device, VkPhysicalDevice const physical_device, std::size_t const size, VkBufferUsageFlags const usage, VkMemoryPropertyFlags const memory_flags) {
+	UnmappedBuffer::UnmappedBuffer(VkBuffer const buffer, VkDeviceMemory const memory, VkDeviceSize const size) : m_Buffer{ buffer }, m_Memory{ memory }, m_Size{ size } {
+		
+	}
+
+	void UnmappedBuffer::create(VkBuffer const buffer, VkDeviceMemory const memory, VkDeviceSize const size) {
+#ifdef _DEBUG
+		if (m_Buffer != VK_NULL_HANDLE) {
+			SPDLOG_WARN("Forgot to free UnmappedBuffer prior to calling create().");
+			//cannot free
+		}
+#endif
+		m_Buffer = buffer;
+		m_Memory = memory;
+		m_Size = size;
+	}
+	VkResult UnmappedBuffer::create(VkDevice const logical_device, VkPhysicalDevice const physical_device, VkDeviceSize const size, VkBufferUsageFlags const usage, VkMemoryPropertyFlags const memory_flags) {
+#ifdef _DEBUG
+		if (m_Buffer != VK_NULL_HANDLE) /* Added in debug-only, because I've decided that buffers MUST be in a freed state prior to creation. */ {
+			SPDLOG_WARN("Forgot to free UnmappedBuffer before calling create().");
+			free(logical_device);
+		}
+#endif
 		VkResult result = VK_SUCCESS;
 
 		std::tie(result, m_Buffer, m_Memory) = createBuffer(logical_device, physical_device, size, usage, memory_flags);
@@ -19,6 +40,7 @@ namespace API_NAME {
 			return result;
 		}
 #endif
+		m_Size = size;
 
 		return result;
 	}
@@ -32,5 +54,8 @@ namespace API_NAME {
 	}
 	VkDeviceMemory UnmappedBuffer::memory() const noexcept {
 		return m_Memory;
+	}
+	VkDeviceSize UnmappedBuffer::size() const noexcept {
+		return m_Size;
 	}
 }

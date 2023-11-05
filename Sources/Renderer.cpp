@@ -1040,31 +1040,88 @@ namespace API_NAME {
 			auto vertices = mesh.vertices();
 			auto indices = mesh.indices();
 
-			result = m_VertexBuffer.create(m_LogicalDevice, m_PhysicalDevice, sizeof(decltype(*std::begin(vertices))) * std::size(vertices), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+			if (m_PhysicalDeviceProperties.deviceType != VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) /* Use Staging Buffer */ {
+				MappedBuffer vertex_staging_buffer, index_staging_buffer;
+				result = vertex_staging_buffer.create(m_LogicalDevice, m_PhysicalDevice, sizeof(decltype(*std::begin(vertices))) * std::size(vertices), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 #ifdef _DEBUG
-			if (result != VK_SUCCESS) {
-				SPDLOG_ERROR("Vertex Buffer creation failed: {}", getEnumString(result));
-			}
+				if (result != VK_SUCCESS) {
+					SPDLOG_ERROR("Vertex Staging Buffer creation failed: {}", getEnumString(result));
+				}
 #endif
+				result = index_staging_buffer.create(m_LogicalDevice, m_PhysicalDevice, sizeof(decltype(*std::begin(indices))) * std::size(indices), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+#ifdef _DEBUG
+				if (result != VK_SUCCESS) {
+					SPDLOG_ERROR("Index Staging Buffer creation failed: {}", getEnumString(result));
+				}
+#endif
+				(void)std::memcpy(vertex_staging_buffer.mapped(), std::data(vertices), vertex_staging_buffer.size());
+				(void)std::memcpy(index_staging_buffer.mapped(), std::data(indices), index_staging_buffer.size());
+
+				VkBuffer vertex_buffer, index_buffer;
+				VkDeviceMemory vertex_buffer_memory, index_buffer_memory;
+				std::tie(result, vertex_buffer, vertex_buffer_memory) = copyBuffer(m_LogicalDevice, m_PhysicalDevice, m_DestructibleCommandPool, m_GraphicsQueue, vertex_staging_buffer.buffer(), vertex_staging_buffer.size(), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+#ifdef _DEBUG
+				if (result != VK_SUCCESS) {
+					SPDLOG_ERROR("Failed to copy Vertex Staging Buffer to Vertex Buffer: {}", getEnumString(result));
+				}
+#endif
+				std::tie(result, index_buffer, index_buffer_memory) = copyBuffer(m_LogicalDevice, m_PhysicalDevice, m_DestructibleCommandPool, m_GraphicsQueue, index_staging_buffer.buffer(), index_staging_buffer.size(), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+#ifdef _DEBUG
+				if (result != VK_SUCCESS) {
+					SPDLOG_ERROR("Failed to copy Index Staging Buffer to Index Buffer: {}", getEnumString(result));
+				}
+#endif
+				vertex_staging_buffer.free(m_LogicalDevice);
+				index_staging_buffer.free(m_LogicalDevice);
+				m_VertexBuffer.create(vertex_buffer, vertex_buffer_memory, vertex_staging_buffer.size());
+				m_IndexBuffer.create(index_buffer, index_buffer_memory, index_staging_buffer.size());
+			}
+			else {
+				result = m_VertexBuffer.create(m_LogicalDevice, m_PhysicalDevice, sizeof(decltype(*std::begin(vertices))) * std::size(vertices), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+#ifdef _DEBUG 
+				if (result != VK_SUCCESS) {
+					SPDLOG_ERROR("Vertex Buffer creation failed: {}", getEnumString(result));
+				}
+#endif
+				result = m_IndexBuffer.create(m_LogicalDevice, m_PhysicalDevice, sizeof(decltype(*std::begin(indices))) * std::size(indices), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+#ifdef _DEBUG
+				if (result != VK_SUCCESS) {
+					SPDLOG_ERROR("Index Buffer creation failed: {}", getEnumString(result));
+				}
+#endif
+				void* vertex_buffer_mapped, *index_buffer_mapped;
+				result = vkMapMemory(m_LogicalDevice, m_VertexBuffer.memory(), 0, m_VertexBuffer.size(), 0, &vertex_buffer_mapped);
+#ifdef _DEBUG
+				if (result != VK_SUCCESS) {
+					SPDLOG_ERROR("vkMapMemory failed Vertex Buffer memory mapping: {}", getEnumString(result));
+				}
+#endif
+				result = vkMapMemory(m_LogicalDevice, m_IndexBuffer.memory(), 0, m_IndexBuffer.size(), 0, &index_buffer_mapped);
+#ifdef _DEBUG
+				if (result != VK_SUCCESS) {
+					SPDLOG_ERROR("vkMapMemory failed Index Buffer memory mapping: {}", getEnumString(result));
+				}
+#endif
+				(void)std::memcpy(vertex_buffer_mapped, std::data(vertices), m_VertexBuffer.size());
+				(void)std::memcpy(index_buffer_mapped, std::data(indices), m_IndexBuffer.size());
+				vkUnmapMemory(m_LogicalDevice, m_VertexBuffer.memory());
+				vkUnmapMemory(m_LogicalDevice, m_IndexBuffer.memory());
+			}
+
+			
 			result = m_PerInstanceBuffer.create(m_LogicalDevice, m_PhysicalDevice, sizeof(EntityInstanceData) * std::size(m_Entities), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 #ifdef _DEBUG
 			if (result != VK_SUCCESS) {
 				SPDLOG_ERROR("Per-Instance Buffer creation failed: {}", getEnumString(result));
 			}
 #endif
-			result = m_IndexBuffer.create(m_LogicalDevice, m_PhysicalDevice, sizeof(decltype(*std::begin(indices))) * std::size(indices), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-#ifdef _DEBUG
-			if (result != VK_SUCCESS) {
-				SPDLOG_ERROR("Index Buffer creation failed: {}", getEnumString(result));
-			}
-#endif
 			
-			(void)std::memcpy(m_VertexBuffer.mapped(), std::data(vertices), m_VertexBuffer.size());
+			/* Must be u08*, not void*, because you can't perform pointer arithmetic on void* */
 			auto mapped_per_instance_buffer = reinterpret_cast<u08*>(m_PerInstanceBuffer.mapped());
 			for (auto[i, entity] : std::views::enumerate(m_Entities)) {
 				(void)std::memcpy(mapped_per_instance_buffer + sizeof(EntityInstanceData) * i, &entity.instance_data(), sizeof(EntityInstanceData));
 			}
-			(void)std::memcpy(m_IndexBuffer.mapped(), std::data(indices), m_IndexBuffer.size());
+			
 		}
 		
 		/* Descriptor Pools */ {

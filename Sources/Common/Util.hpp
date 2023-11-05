@@ -54,10 +54,10 @@ namespace API_NAME {
 	[[nodiscard]] std::tuple<VkResult, VkImage, VkDeviceMemory> createImage(VkDevice const logical_device, VkPhysicalDevice const physical_device, u32 const width, u32 const height, VkFormat const format, VkImageTiling const tiling, VkImageUsageFlags const usage, VkMemoryPropertyFlags const memory_properties, u32 const layers = 1);
 	[[nodiscard]] std::tuple<VkResult, VkImageView> createImageView(VkDevice const logical_device, VkImage const image, VkFormat const format, VkImageAspectFlags const aspect, VkImageViewType const type = VK_IMAGE_VIEW_TYPE_2D, u32 const layers = 1);
 	VkResult copyBufferToImage(VkDevice const logical_device, VkCommandPool const command_pool, VkQueue const graphics_queue, VkBuffer const buffer, VkImage const image, u32 const width, u32 const height, u32 const layers = 1);
-	[[nodiscard]] std::tuple<VkResult, VkBuffer, VkDeviceMemory> copyBuffer(VkDevice const logical_device, VkPhysicalDevice const physical_device, VkCommandBuffer const command_buffer, VkQueue const graphics_queue, VkBuffer const src);
+	[[nodiscard]] std::tuple<VkResult, VkBuffer, VkDeviceMemory> copyBuffer(VkDevice const logical_device, VkPhysicalDevice const physical_device, VkCommandPool const command_pool, VkQueue const graphics_queue, VkBuffer const src_buffer, VkDeviceSize const size, VkBufferUsageFlags const usage, VkMemoryPropertyFlags const memory_properties);
 	[[nodiscard]] std::tuple<VkResult, VkCommandBuffer> recordOnceOffCommand(VkDevice const logical_device, VkCommandPool const command_pool);
 	VkResult destroyOnceOffCommand(VkDevice const logical_device, VkCommandPool const command_pool, VkCommandBuffer const command_buffer, VkQueue const graphics_queue);
-	VkResult flushCommandBuffer(VkDevice const logical_device, VkCommandPool const command_pool, VkCommandBuffer const command_buffer, VkQueue const queue);
+	VkResult destroyOnceOffCommandFenced(VkDevice const logical_device, VkCommandPool const command_pool, VkCommandBuffer const command_buffer, VkQueue const graphics_queue);
 	VkResult transitionImageLayout(VkDevice const logical_device, VkCommandPool const command_pool, VkQueue const graphics_queue, VkImage const image, VkFormat const format, VkImageLayout const old_layout, VkImageLayout const new_layout, u32 const layers = 1);
 
 	template <auto val> auto ConstantPredicate = [](auto&&...) -> decltype(val) { return val; };
