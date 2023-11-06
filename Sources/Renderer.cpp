@@ -1040,7 +1040,7 @@ namespace API_NAME {
 			auto vertices = mesh.vertices();
 			auto indices = mesh.indices();
 
-			if (m_PhysicalDeviceProperties.deviceType != VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) /* Use Staging Buffer */ {
+			if (m_PhysicalDeviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) /* Use Staging Buffer */ {
 				MappedBuffer vertex_staging_buffer, index_staging_buffer;
 				result = vertex_staging_buffer.create(m_LogicalDevice, m_PhysicalDevice, sizeof(decltype(*std::begin(vertices))) * std::size(vertices), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 #ifdef _DEBUG
