@@ -73,7 +73,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <OutDir>$(SolutionDir)ApplicationDebug\</OutDir>
-    <IntDir>$(SolutionDIr)ApplicationDebugIntermediate\</IntDir>
+    <IntDir>$(SolutionDir)ApplicationDebugIntermediate\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>$(SolutionDir)Application\</OutDir>
