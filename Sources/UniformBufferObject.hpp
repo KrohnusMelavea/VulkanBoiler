@@ -11,13 +11,19 @@
 namespace API_NAME {
 	class UniformBufferObject {
 	public:
-		VkResult create(VkDevice const logical_device, VkPhysicalDevice const physical_device);
-		void free(VkDevice const logical_device);
+		UniformBufferObject() = default;
+		UniformBufferObject(VkDevice const logical_device, VkPhysicalDevice const physical_device) noexcept;
+
+		VkResult create();
+		void free();
 
 		[[nodiscard]] UniformData& uniform() noexcept;
 		[[nodiscard]] MappedBuffer& mapped_buffer() noexcept;
 
 	private:
+		VkDevice m_LogicalDevice;
+		VkPhysicalDevice m_PhysicalDevice;
+
 		UniformData m_Uniform;
 		MappedBuffer m_MappedBuffer;
 	};

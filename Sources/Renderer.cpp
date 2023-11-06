@@ -42,7 +42,7 @@ namespace API_NAME {
 				m_Entities[0].rotate(glm::vec3(0.0f, 0.0f, 0.01f));
 				m_Entities[1].rotate(glm::vec3(0.0f, 0.0f, 0.01f));
 
-				u08* mapped = reinterpret_cast<u08*>(m_PerInstanceBuffer.mapped());
+				u08* mapped = reinterpret_cast<u08*>(m_PerInstanceBuffer.mapped_memory());
 				for (auto [i, entity] : std::views::enumerate(m_Entities)) {
 					(void)std::memcpy(mapped + sizeof(EntityInstanceData) * i, &entity.instance_data(), sizeof(EntityInstanceData));
 				}
@@ -51,7 +51,7 @@ namespace API_NAME {
 					auto& uniform = ubo.uniform();
 					uniform.view = glm::lookAt(m_Camera.translation(), m_Camera.translation() - glm::vec3(0.0f, 5.0f, 5.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 					uniform.projection = glm::perspective(glm::radians(45.0f), static_cast<f32>(m_Extent.width) / static_cast<f32>(m_Extent.height), 0.1f, 1000.0f);
-					(void)std::memcpy(ubo.mapped_buffer().mapped(), &ubo.uniform(), ubo.mapped_buffer().size());
+					(void)std::memcpy(ubo.mapped_buffer().mapped_memory(), &ubo.uniform(), ubo.mapped_buffer().size());
 				}
 			}
 		}
@@ -1021,42 +1021,48 @@ namespace API_NAME {
 
 		/* UBO Creation */ {
 			for (auto&& ubo : m_UBOs) {
-				result = ubo.create(m_LogicalDevice, m_PhysicalDevice);
+				ubo = UniformBufferObject(m_LogicalDevice, m_PhysicalDevice);
+
+				result = ubo.create();
 #ifdef _DEBUG
 				if (result != VK_SUCCESS) {
 					SPDLOG_ERROR("UniformBufferObject::create failed ubo creation: {}", getEnumString(result));
 				}
 #endif
-
+				/* This is weird... defo review */
 				auto& uniform = ubo.uniform();
 				uniform.view = glm::lookAt(glm::vec3(0.0f, 5.0f, 5.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 				uniform.projection = glm::perspective(glm::radians(45.0f), static_cast<f32>(m_Extent.width) / static_cast<f32>(m_Extent.height), 0.1f, 1000.0f);
-				(void)std::memcpy(ubo.mapped_buffer().mapped(), &ubo.uniform(), ubo.mapped_buffer().size());
+				(void)std::memcpy(ubo.mapped_buffer().mapped_memory(), &ubo.uniform(), ubo.mapped_buffer().size());
 			}
 		}
 
 		/* Vertex, Per-Instance, and Index Buffer Creation */ {
+			m_VertexBuffer = UnmappedBuffer(m_LogicalDevice, m_PhysicalDevice);
+			m_IndexBuffer = UnmappedBuffer(m_LogicalDevice, m_PhysicalDevice);
+			m_PerInstanceBuffer = MappedBuffer(m_LogicalDevice, m_PhysicalDevice);
+
 			auto& mesh = AMS.fetchMesh("Viking Room");
 			auto vertices = mesh.vertices();
 			auto indices = mesh.indices();
 
 			if (m_PhysicalDeviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) /* Use Staging Buffer */ {
-				MappedBuffer vertex_staging_buffer, index_staging_buffer;
-				result = vertex_staging_buffer.create(m_LogicalDevice, m_PhysicalDevice, sizeof(decltype(*std::begin(vertices))) * std::size(vertices), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+				MappedBuffer vertex_staging_buffer(m_LogicalDevice, m_PhysicalDevice), index_staging_buffer(m_LogicalDevice, m_PhysicalDevice);
+
+				result = vertex_staging_buffer.create(sizeof(decltype(*std::begin(vertices))) * std::size(vertices), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 #ifdef _DEBUG
 				if (result != VK_SUCCESS) {
 					SPDLOG_ERROR("Vertex Staging Buffer creation failed: {}", getEnumString(result));
 				}
 #endif
-				result = index_staging_buffer.create(m_LogicalDevice, m_PhysicalDevice, sizeof(decltype(*std::begin(indices))) * std::size(indices), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+				result = index_staging_buffer.create(sizeof(decltype(*std::begin(indices))) * std::size(indices), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 #ifdef _DEBUG
 				if (result != VK_SUCCESS) {
 					SPDLOG_ERROR("Index Staging Buffer creation failed: {}", getEnumString(result));
 				}
 #endif
-				(void)std::memcpy(vertex_staging_buffer.mapped(), std::data(vertices), vertex_staging_buffer.size());
-				(void)std::memcpy(index_staging_buffer.mapped(), std::data(indices), index_staging_buffer.size());
-
+				(void)std::memcpy(vertex_staging_buffer.mapped_memory(), std::data(vertices), vertex_staging_buffer.size());
+				(void)std::memcpy(index_staging_buffer.mapped_memory(), std::data(indices), index_staging_buffer.size());
 				VkBuffer vertex_buffer, index_buffer;
 				VkDeviceMemory vertex_buffer_memory, index_buffer_memory;
 				std::tie(result, vertex_buffer, vertex_buffer_memory) = copyBuffer(m_LogicalDevice, m_PhysicalDevice, m_DestructibleCommandPool, m_GraphicsQueue, vertex_staging_buffer.buffer(), vertex_staging_buffer.size(), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
@@ -1071,45 +1077,37 @@ namespace API_NAME {
 					SPDLOG_ERROR("Failed to copy Index Staging Buffer to Index Buffer: {}", getEnumString(result));
 				}
 #endif
-				vertex_staging_buffer.free(m_LogicalDevice);
-				index_staging_buffer.free(m_LogicalDevice);
-				m_VertexBuffer.create(vertex_buffer, vertex_buffer_memory, vertex_staging_buffer.size());
-				m_IndexBuffer.create(index_buffer, index_buffer_memory, index_staging_buffer.size());
+				vertex_staging_buffer.free();
+				index_staging_buffer.free();
+				m_VertexBuffer.create(vertex_buffer, vertex_buffer_memory, vertex_staging_buffer.size(), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+				m_IndexBuffer.create(index_buffer, index_buffer_memory, index_staging_buffer.size(), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 			}
 			else {
-				result = m_VertexBuffer.create(m_LogicalDevice, m_PhysicalDevice, sizeof(decltype(*std::begin(vertices))) * std::size(vertices), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+				MappedBuffer vertex_buffer(m_LogicalDevice, m_PhysicalDevice), index_buffer(m_LogicalDevice, m_PhysicalDevice);
+
+				result = vertex_buffer.create(sizeof(decltype(*std::begin(vertices))) * std::size(vertices), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 #ifdef _DEBUG 
 				if (result != VK_SUCCESS) {
 					SPDLOG_ERROR("Vertex Buffer creation failed: {}", getEnumString(result));
 				}
 #endif
-				result = m_IndexBuffer.create(m_LogicalDevice, m_PhysicalDevice, sizeof(decltype(*std::begin(indices))) * std::size(indices), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+				result = index_buffer.create(sizeof(decltype(*std::begin(indices))) * std::size(indices), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 #ifdef _DEBUG
 				if (result != VK_SUCCESS) {
 					SPDLOG_ERROR("Index Buffer creation failed: {}", getEnumString(result));
 				}
 #endif
-				void* vertex_buffer_mapped, *index_buffer_mapped;
-				result = vkMapMemory(m_LogicalDevice, m_VertexBuffer.memory(), 0, m_VertexBuffer.size(), 0, &vertex_buffer_mapped);
-#ifdef _DEBUG
-				if (result != VK_SUCCESS) {
-					SPDLOG_ERROR("vkMapMemory failed Vertex Buffer memory mapping: {}", getEnumString(result));
-				}
-#endif
-				result = vkMapMemory(m_LogicalDevice, m_IndexBuffer.memory(), 0, m_IndexBuffer.size(), 0, &index_buffer_mapped);
-#ifdef _DEBUG
-				if (result != VK_SUCCESS) {
-					SPDLOG_ERROR("vkMapMemory failed Index Buffer memory mapping: {}", getEnumString(result));
-				}
-#endif
-				(void)std::memcpy(vertex_buffer_mapped, std::data(vertices), m_VertexBuffer.size());
-				(void)std::memcpy(index_buffer_mapped, std::data(indices), m_IndexBuffer.size());
-				vkUnmapMemory(m_LogicalDevice, m_VertexBuffer.memory());
-				vkUnmapMemory(m_LogicalDevice, m_IndexBuffer.memory());
-			}
+				(void)std::memcpy(vertex_buffer.mapped_memory(), std::data(vertices), m_VertexBuffer.size());
+				(void)std::memcpy(index_buffer.mapped_memory(), std::data(indices), m_IndexBuffer.size());
 
+				m_VertexBuffer.create(vertex_buffer.buffer(), vertex_buffer.memory(), vertex_buffer.size(), vertex_buffer.usage(), vertex_buffer.memory_properties());
+				m_IndexBuffer.create(index_buffer.buffer(), index_buffer.memory(), index_buffer.size(), index_buffer.usage(), index_buffer.memory_properties());
+
+				vertex_buffer.relinquish();
+				index_buffer.relinquish();
+			}
 			
-			result = m_PerInstanceBuffer.create(m_LogicalDevice, m_PhysicalDevice, sizeof(EntityInstanceData) * std::size(m_Entities), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+			result = m_PerInstanceBuffer.create(sizeof(EntityInstanceData) * std::size(m_Entities), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 #ifdef _DEBUG
 			if (result != VK_SUCCESS) {
 				SPDLOG_ERROR("Per-Instance Buffer creation failed: {}", getEnumString(result));
@@ -1117,7 +1115,7 @@ namespace API_NAME {
 #endif
 			
 			/* Must be u08*, not void*, because you can't perform pointer arithmetic on void* */
-			auto mapped_per_instance_buffer = reinterpret_cast<u08*>(m_PerInstanceBuffer.mapped());
+			auto mapped_per_instance_buffer = reinterpret_cast<u08*>(m_PerInstanceBuffer.mapped_memory());
 			for (auto[i, entity] : std::views::enumerate(m_Entities)) {
 				(void)std::memcpy(mapped_per_instance_buffer + sizeof(EntityInstanceData) * i, &entity.instance_data(), sizeof(EntityInstanceData));
 			}
@@ -1299,13 +1297,13 @@ namespace API_NAME {
 		}
 		
 		for (auto&& ubo : m_UBOs) {
-			ubo.free(m_LogicalDevice);
+			ubo.free();
 		}
 
 		/* Vertex and Index Buffer Cleanup */ {
-			m_VertexBuffer.free(m_LogicalDevice);
-			m_PerInstanceBuffer.free(m_LogicalDevice);
-			m_IndexBuffer.free(m_LogicalDevice);
+			m_VertexBuffer.free();
+			m_PerInstanceBuffer.free();
+			m_IndexBuffer.free();
 		}
 
 		vkDestroyDescriptorPool(m_LogicalDevice, m_DescriptorPool, nullptr);

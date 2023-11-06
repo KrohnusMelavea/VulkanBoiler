@@ -178,7 +178,6 @@
     <ClInclude Include="Sources\UnmappedBuffer.hpp" />
     <ClInclude Include="Sources\Vertex2D.hpp" />
     <ClInclude Include="Sources\Vertex3D.hpp" />
-    <ClInclude Include="Sources\VertexBufferObject.hpp" />
     <ClInclude Include="Sources\VertexShaderInput.hpp" />
     <ClInclude Include="Sources\WindowHandler.hpp" />
     <ClInclude Include="Sources\WindowProperties.hpp" />
@@ -188,6 +187,7 @@
     <ClCompile Include="Sources\Application.cpp" />
     <ClCompile Include="Sources\AssetManagementSystem.cpp" />
     <ClCompile Include="Sources\Camera.cpp" />
+    <ClCompile Include="Sources\Common\EnumStrings.cpp" />
     <ClCompile Include="Sources\Common\Util.cpp" />
     <ClCompile Include="Sources\CycleTimer.cpp" />
     <ClCompile Include="Sources\Entity.cpp" />
@@ -200,7 +200,6 @@
     <ClCompile Include="Sources\ShaderProgram.cpp" />
     <ClCompile Include="Sources\UniformBufferObject.cpp" />
     <ClCompile Include="Sources\UnmappedBuffer.cpp" />
-    <ClCompile Include="Sources\VertexBufferObject.cpp" />
     <ClCompile Include="Sources\VertexShaderInput.cpp" />
     <ClCompile Include="Sources\WindowHandler.cpp" />
     <ClCompile Include="stb_image.cpp" />

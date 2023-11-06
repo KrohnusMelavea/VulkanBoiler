@@ -9,44 +9,75 @@
 #pragma warning(pop)
 
 namespace API_NAME {
-	UnmappedBuffer::UnmappedBuffer(VkBuffer const buffer, VkDeviceMemory const memory, VkDeviceSize const size) : m_Buffer{ buffer }, m_Memory{ memory }, m_Size{ size } {
-		
-	}
+	UnmappedBuffer::UnmappedBuffer(VkDevice const logical_device, VkPhysicalDevice const physical_device) noexcept : m_LogicalDevice{ logical_device }, m_PhysicalDevice{ physical_device }, m_Buffer{ VK_NULL_HANDLE }, m_Memory{ VK_NULL_HANDLE }, m_Size{ NULL }, m_Usage{ VK_BUFFER_USAGE_FLAG_BITS_MAX_ENUM }, m_MemoryProperties{ VK_MEMORY_PROPERTY_FLAG_BITS_MAX_ENUM } {
 
-	void UnmappedBuffer::create(VkBuffer const buffer, VkDeviceMemory const memory, VkDeviceSize const size) {
-#ifdef _DEBUG
-		if (m_Buffer != VK_NULL_HANDLE) {
-			SPDLOG_WARN("Forgot to free UnmappedBuffer prior to calling create().");
-			//cannot free
-		}
-#endif
-		m_Buffer = buffer;
-		m_Memory = memory;
-		m_Size = size;
 	}
-	VkResult UnmappedBuffer::create(VkDevice const logical_device, VkPhysicalDevice const physical_device, VkDeviceSize const size, VkBufferUsageFlags const usage, VkMemoryPropertyFlags const memory_flags) {
-#ifdef _DEBUG
-		if (m_Buffer != VK_NULL_HANDLE) /* Added in debug-only, because I've decided that buffers MUST be in a freed state prior to creation. */ {
-			SPDLOG_WARN("Forgot to free UnmappedBuffer before calling create().");
-			free(logical_device);
-		}
-#endif
+	UnmappedBuffer::UnmappedBuffer(VkDevice const logical_device, VkPhysicalDevice const physical_device, VkDeviceSize const size, VkBufferUsageFlags const usage, VkMemoryPropertyFlags const memory_properties) : m_LogicalDevice{ logical_device }, m_PhysicalDevice{ physical_device }, m_Size{ size }, m_Usage { usage }, m_MemoryProperties{ memory_properties } {
 		VkResult result = VK_SUCCESS;
 
-		std::tie(result, m_Buffer, m_Memory) = createBuffer(logical_device, physical_device, size, usage, memory_flags);
+		result = create();
+#ifdef _DEBUG
+		if (result != VK_SUCCESS) {
+			SPDLOG_ERROR("UnmappedBuffer failed creation: {}", getEnumString(result));
+		}
+#endif
+	}
+	UnmappedBuffer::UnmappedBuffer(VkDevice const logical_device, VkPhysicalDevice const physical_device, VkBuffer const buffer, VkDeviceMemory const memory, VkDeviceSize const size, VkBufferUsageFlags const usage, VkMemoryPropertyFlags const memory_properties) : m_LogicalDevice{ logical_device }, m_PhysicalDevice{ physical_device }, m_Buffer{ buffer }, m_Memory{ memory }, m_Size{ size }, m_Usage{ usage }, m_MemoryProperties{ memory_properties } {
+
+	}
+
+	VkResult UnmappedBuffer::create() {
+#ifdef _DEBUG
+		if (m_Buffer != VK_NULL_HANDLE) {
+			SPDLOG_WARN("UnmappedBuffer attempted buffer creation without destructing previously created buffer.");
+			free();
+		}
+#endif
+
+		VkResult result = VK_SUCCESS;
+
+		std::tie(result, m_Buffer, m_Memory) = createBuffer(m_LogicalDevice, m_PhysicalDevice, m_Size, m_Usage, m_MemoryProperties);
 #ifdef _DEBUG
 		if (result != VK_SUCCESS) {
 			SPDLOG_ERROR("createBuffer failed buffer creation: {}", getEnumString(result));
 			return result;
 		}
 #endif
-		m_Size = size;
 
 		return result;
 	}
-	void UnmappedBuffer::free(VkDevice const logical_device) {
-		vkDestroyBuffer(logical_device, m_Buffer, nullptr);
-		vkFreeMemory(logical_device, m_Memory, nullptr);
+	VkResult UnmappedBuffer::create(VkDeviceSize const size, VkBufferUsageFlags const usage, VkMemoryPropertyFlags const memory_properties) {
+#ifdef _DEBUG
+		if (m_Buffer != VK_NULL_HANDLE) {
+			SPDLOG_WARN("UnmappedBuffer attempted buffer creation without destructing previously created buffer.");
+			free();
+		}
+#endif
+
+		m_Size = size;
+		m_Usage = usage;
+		m_MemoryProperties = memory_properties;
+
+		return create();
+	}
+	void UnmappedBuffer::create(VkBuffer const buffer, VkDeviceMemory const memory, VkDeviceSize const size, VkBufferUsageFlags const usage, VkMemoryPropertyFlags const memory_properties) noexcept {
+#ifdef _DEBUG
+		if (m_Buffer != VK_NULL_HANDLE) {
+			SPDLOG_WARN("UnmappedBuffer attempted buffer creation without destructing previously created buffer.");
+			free();
+		}
+#endif
+
+		m_Buffer = buffer;
+		m_Memory = memory;
+		m_Size = size;
+		m_Usage = usage;
+		m_MemoryProperties = memory_properties;
+	}
+
+	void UnmappedBuffer::free() {
+		vkDestroyBuffer(m_LogicalDevice, m_Buffer, nullptr);
+		vkFreeMemory(m_LogicalDevice, m_Memory, nullptr);
 	}
 
 	VkBuffer UnmappedBuffer::buffer() const noexcept {
@@ -57,5 +88,11 @@ namespace API_NAME {
 	}
 	VkDeviceSize UnmappedBuffer::size() const noexcept {
 		return m_Size;
+	}
+	VkBufferUsageFlags UnmappedBuffer::usage() const noexcept {
+		return m_Usage;
+	}
+	VkMemoryPropertyFlags UnmappedBuffer::memory_properties() const noexcept {
+		return m_MemoryProperties;
 	}
 }
